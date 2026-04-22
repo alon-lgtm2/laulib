@@ -140,13 +140,15 @@ export default function App({ data }) {
         l.description?.toLowerCase().includes(query.toLowerCase())
       );
 
-  // ── Mobile topic strip ──────────────────────────────────────────────────────
+  // ── Mobile topic strip (brand + pills in one row) ──────────────────────────
   const MobileTopicStrip = () => (
-    <>
-      <div style={s.mobileHeader}>
+    <div style={s.mobileTopicRow}>
+      {/* Brand — fixed, doesn't scroll */}
+      <div style={s.mobileBrand}>
         <div style={s.brandDot} />
-        <span style={s.brandText}>ספריית התוכן</span>
+        <span style={{ ...s.brandText, fontSize: 9 }}>ספריית<br/>התוכן</span>
       </div>
+      {/* Topic pills — scrollable */}
       <div className="mobile-topic-strip" style={s.mobileTopicStrip}>
         {topics.map(t => {
           const active = t._id === topicId;
@@ -162,7 +164,7 @@ export default function App({ data }) {
           );
         })}
       </div>
-    </>
+    </div>
   );
 
   return (
@@ -215,7 +217,7 @@ export default function App({ data }) {
           ...s.toolbar,
           flexDirection: isMobile ? 'column' : 'row',
           alignItems:    isMobile ? 'stretch' : 'center',
-          padding:       isMobile ? '12px 14px' : '14px 22px',
+          padding:       isMobile ? '9px 12px' : '14px 22px',
           gap:           isMobile ? 10 : 12,
         }}>
           <div style={{ ...s.searchWrap, maxWidth: isMobile ? 'none' : 400 }}>
@@ -558,26 +560,30 @@ const s = {
     color: C.text, overflow:'hidden',
   },
 
-  // ── Mobile header & topic strip ──
-  mobileHeader: {
-    display:'flex', alignItems:'center', gap:10,
-    padding:'14px 16px 12px',
+  // ── Mobile topic strip (combined single row) ──
+  mobileTopicRow: {
+    display:'flex', alignItems:'stretch',
     backgroundColor: C.navyDeep,
-    flexShrink:0,
-    borderBottom:'1px solid rgba(255,255,255,0.07)',
-  },
-  mobileTopicStrip: {
-    display:'flex', overflowX:'auto',
-    backgroundColor: C.navyDeep,
-    padding:'10px 14px', gap:8,
     flexShrink:0,
     borderBottom:'2px solid rgba(255,255,255,0.06)',
   },
+  mobileBrand: {
+    display:'flex', flexDirection:'column', alignItems:'center',
+    justifyContent:'center', gap:4,
+    padding:'8px 10px 8px 4px',
+    borderLeft:'1px solid rgba(255,255,255,0.1)',
+    flexShrink:0,
+  },
+  mobileTopicStrip: {
+    display:'flex', overflowX:'auto', flex:1,
+    padding:'8px 10px', gap:7,
+    alignItems:'center',
+  },
   mobileTopicBtn: {
-    whiteSpace:'nowrap', padding:'8px 16px',
+    whiteSpace:'nowrap', padding:'7px 14px',
     borderRadius:100,
     border:'1.5px solid rgba(255,255,255,0.2)',
-    cursor:'pointer', fontSize:14, fontFamily:'inherit',
+    cursor:'pointer', fontSize:13, fontFamily:'inherit',
     color:'rgba(255,255,255,0.7)', backgroundColor:'transparent',
     flexShrink:0, transition:'all 0.18s',
   },
