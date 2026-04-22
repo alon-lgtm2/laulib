@@ -1,0 +1,863 @@
+import { useState, useEffect } from 'react';
+
+// ─── Design tokens ────────────────────────────────────────────────────────────
+
+const SITE_BLUE = '#4A71FF';   // matches the Wix site background exactly
+
+const C = {
+  // Site palette
+  blue:       SITE_BLUE,
+  blueDeep:   '#3355E8',
+  blueLight:  'rgba(74,113,255,0.15)',
+  blueWhite:  'rgba(255,255,255,0.12)',
+  blueWhite2: 'rgba(255,255,255,0.22)',
+  // Content palette
+  navy:       '#1B3F6A',
+  navyDeep:   '#122b4f',
+  gold:       '#B8873A',
+  goldLight:  'rgba(184,135,58,0.14)',
+  goldPale:   'rgba(184,135,58,0.07)',
+  cream:      '#F8F4EE',
+  creamDark:  '#EDE8E0',
+  white:      '#FFFFFF',
+  text:       '#1C1C1C',
+  muted:      '#6B7280',
+  faint:      '#9CA3AF',
+  border:     '#E5DED4',
+  // Media type colours
+  video:      '#2563EB',
+  videoLight: 'rgba(37,99,235,0.10)',
+  audio:      '#059669',
+  audioLight: 'rgba(5,150,105,0.10)',
+  book:       '#7C3AED',
+  bookLight:  'rgba(124,58,237,0.10)',
+};
+
+const MEDIA = {
+  video:   { label:'וידאו', icon:'▶', color:C.video,  bg:C.videoLight  },
+  audio:   { label:'שמע',  icon:'♫', color:C.audio,  bg:C.audioLight  },
+  book:    { label:'ספר',  icon:'📖',color:C.book,   bg:C.bookLight   },
+  article: { label:'מאמר', icon:'✍', color:C.navy,   bg:C.blueLight   },
+};
+function media(t) { return MEDIA[t] || { label:t||'', icon:'•', color:C.muted, bg:C.creamDark }; }
+
+function formatDuration(min) {
+  if (!min) return '';
+  const h = Math.floor(min/60), m = min%60;
+  return h > 0 ? `${h}:${String(m).padStart(2,'0')} ש'` : `${m} דק'`;
+}
+
+// Detect media type from any URL — one field handles everything
+function detectMedia(url) {
+  if (!url) return null;
+  const u = url.trim();
+
+  // YouTube
+  const ytPatterns = [
+    /youtu\.be\/([^?&\s]+)/,
+    /[?&]v=([^?&\s]+)/,
+    /youtube\.com\/embed\/([^?&\s]+)/,
+    /youtube\.com\/shorts\/([^?&\s]+)/,
+  ];
+  for (const p of ytPatterns) {
+    const m = u.match(p);
+    if (m) return { type: 'youtube', src: `https://www.youtube.com/embed/${m[1]}?rel=0&modestbranding=1` };
+  }
+
+  // Audio file
+  if (/\.(mp3|m4a|ogg|wav|aac|flac)(\?|$)/i.test(u))
+    return { type: 'audio', src: u };
+
+  // Video file
+  if (/\.(mp4|webm|mov|avi|mkv)(\?|$)/i.test(u))
+    return { type: 'video', src: u };
+
+  // PDF
+  if (/\.pdf(\?|$)/i.test(u) || u.includes('drive.google.com/file'))
+    return { type: 'pdf', src: u };
+
+  // Any other URL → external article / link
+  if (/^https?:\/\//i.test(u))
+    return { type: 'link', src: u };
+
+  return null;
+}
+
+// ─── App ──────────────────────────────────────────────────────────────────────
+
+export default function App({ data }) {
+  const topics  = data?.topics  || [];
+  const series  = data?.series  || [];
+  const lessons = data?.lessons || [];
+
+  const [topicId,        setTopicId]        = useState(null);
+  const [seriesId,       setSeriesId]       = useState(null);
+  const [query,          setQuery]          = useState('');
+  const [filter,         setFilter]         = useState('all');
+  const [selectedLesson, setSelectedLesson] = useState(null);
+
+  useEffect(() => {
+    if (!document.getElementById('bavua-font')) {
+      const l = document.createElement('link');
+      l.id='bavua-font'; l.rel='stylesheet';
+      l.href='https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800;900&display=swap';
+      document.head.appendChild(l);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (topics.length && !topicId) setTopicId(topics[0]._id);
+  }, [topics]);
+
+  function lessonCount(tid) {
+    const sids = series.filter(s => s.topic === tid).map(s => s._id);
+    return lessons.filter(l => sids.includes(l.series)).length;
+  }
+
+  function goTopic(tid) { setTopicId(tid); setSeriesId(null); setQuery(''); setFilter('all'); }
+
+  const inLessons     = !!seriesId || !!query;
+  const currentSeries = series.find(s => s._id === seriesId);
+
+  const visibleSeries = series
+    .filter(s => s.topic === topicId)
+    .filter(s => filter === 'all' || s.mediaType === filter);
+
+  const visibleLessons = seriesId
+    ? lessons.filter(l => l.series === seriesId)
+    : lessons.filter(l =>
+        l.title?.toLowerCase().includes(query.toLowerCase()) ||
+        (l.tags||[]).some(t => t.toLowerCase().includes(query.toLowerCase())) ||
+        l.description?.toLowerCase().includes(query.toLowerCase())
+      );
+
+  return (
+    <div dir="rtl" style={s.root}>
+      <style>{css}</style>
+
+      {/* ── Sidebar — on the LEFT so it's never clipped by the iFrame edge ── */}
+      <aside style={s.sidebar}>
+
+        <div style={s.brand}>
+          <div style={s.brandDot} />
+          <span style={s.brandText}>ספריית התוכן</span>
+        </div>
+
+        <div style={s.sidebarSection}>נושאים</div>
+
+        <nav style={s.topicNav}>
+          {topics.map(t => {
+            const active = t._id === topicId;
+            return (
+              <button
+                key={t._id}
+                className={`topic-btn${active?' active':''}`}
+                style={{ ...s.topicBtn, ...(active ? s.topicActive : {}) }}
+                onClick={() => goTopic(t._id)}
+              >
+                <span>{t.title}</span>
+                <span style={{ ...s.badge, ...(active ? s.badgeActive : {}) }}>
+                  {lessonCount(t._id)}
+                </span>
+              </button>
+            );
+          })}
+        </nav>
+
+        <div style={s.sidebarFooter}>
+          <span style={s.footerText}>בבואה © {new Date().getFullYear()}</span>
+        </div>
+      </aside>
+
+      {/* ── Main ──────────────────────────────────────────────────────── */}
+      <main style={s.main}>
+
+        {/* Toolbar */}
+        <header style={s.toolbar}>
+          <div style={s.searchWrap}>
+            <svg width="15" height="15" viewBox="0 0 20 20" fill="none" style={{flexShrink:0}}>
+              <circle cx="9" cy="9" r="6" stroke="rgba(255,255,255,0.5)" strokeWidth="2"/>
+              <path d="M14 14l3 3" stroke="rgba(255,255,255,0.5)" strokeWidth="2" strokeLinecap="round"/>
+            </svg>
+            <input
+              className="bavua-search"
+              style={s.searchInput}
+              type="text"
+              placeholder="חיפוש שיעורים..."
+              value={query}
+              onChange={e => { setQuery(e.target.value); setSeriesId(null); }}
+            />
+            {query && (
+              <button className="clear-btn" style={s.clearBtn} onClick={() => setQuery('')}>✕</button>
+            )}
+          </div>
+
+          {!inLessons && (
+            <div style={s.filters}>
+              {[
+                { key:'all',   label:'הכל'      },
+                { key:'video', label:'▶ וידאו'   },
+                { key:'audio', label:'♫ שמע'     },
+                { key:'book',  label:'📖 ספר'    },
+              ].map(f => (
+                <button
+                  key={f.key}
+                  className={`filter-btn${filter===f.key?' active':''}`}
+                  style={{ ...s.filterBtn, ...(filter===f.key ? s.filterBtnActive : {}) }}
+                  onClick={() => setFilter(f.key)}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </header>
+
+        {/* Content */}
+        {inLessons ? (
+
+          /* ── Lessons panel ── */
+          <div style={s.lessonsWrap}>
+            <div style={s.lessonsPanel}>
+
+              {/* Lessons header */}
+              <div style={s.lessonsHead}>
+                <button
+                  className="back-btn"
+                  style={s.backBtn}
+                  onClick={() => { setSeriesId(null); setQuery(''); }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{flexShrink:0}}>
+                    <path d="M10 12l-4-4 4-4" stroke="currentColor" strokeWidth="2"
+                      strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  חזרה
+                </button>
+                <div style={s.lessonsMeta}>
+                  {currentSeries && (
+                    <span style={{
+                      ...s.miniPill,
+                      color: media(currentSeries.mediaType).color,
+                      backgroundColor: media(currentSeries.mediaType).bg,
+                    }}>
+                      {media(currentSeries.mediaType).icon} {media(currentSeries.mediaType).label}
+                    </span>
+                  )}
+                  <h2 style={s.lessonsTitle}>
+                    {query ? `תוצאות: "${query}"` : currentSeries?.title || ''}
+                  </h2>
+                  {currentSeries?.subtitle && (
+                    <p style={s.lessonsSub}>{currentSeries.subtitle}</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Lesson rows */}
+              <div style={s.lessonList}>
+                {visibleLessons.length === 0 && (
+                  <Empty text="לא נמצאו שיעורים" dark={false} />
+                )}
+                {visibleLessons.map((lesson, i) => {
+                  const m = media(lesson.mediaType);
+                  const hasVideo = !!lesson.videoUrl;
+                  return (
+                    <div
+                      key={lesson._id}
+                      className="lesson-row"
+                      style={{ ...s.lessonRow, cursor: hasVideo ? 'pointer' : 'default' }}
+                      onClick={() => hasVideo && setSelectedLesson(lesson)}
+                    >
+                      <div style={s.lessonNum}>{i + 1}</div>
+                      <div style={s.lessonBody}>
+                        <span style={s.lessonTitle}>{lesson.title}</span>
+                        <div style={s.chips}>
+                          {lesson.mediaType && (
+                            <span style={{...s.chip, color:m.color, backgroundColor:m.bg}}>
+                              {m.icon} {m.label}
+                            </span>
+                          )}
+                          {lesson.duration && (
+                            <span style={s.chipGray}>⏱ {formatDuration(lesson.duration)}</span>
+                          )}
+                          {(lesson.tags||[]).slice(0,2).map(tag => (
+                            <span key={tag} style={s.chipTag}>{tag}</span>
+                          ))}
+                        </div>
+                      </div>
+                      {hasVideo ? (
+                        <div style={s.playBtn}>▶</div>
+                      ) : (
+                        <svg width="14" height="14" viewBox="0 0 16 16" fill="none"
+                          style={{color:C.border, flexShrink:0}}>
+                          <path d="M6 12l4-4-4-4" stroke="currentColor" strokeWidth="2"
+                            strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+        ) : (
+
+          /* ── Series grid (floats on site blue) ── */
+          <div style={s.seriesGrid}>
+            {visibleSeries.length === 0 && <Empty text="אין סדרות לנושא זה" dark />}
+            {visibleSeries.map(ser => {
+              const count = lessons.filter(l => l.series === ser._id).length;
+              const m = media(ser.mediaType);
+              return (
+                <div
+                  key={ser._id}
+                  className="series-card"
+                  style={s.seriesCard}
+                  onClick={() => setSeriesId(ser._id)}
+                >
+                  <div style={{...s.cardStripe, backgroundColor: m.color}} />
+                  <div style={s.cardBody}>
+                    <div style={s.cardTop}>
+                      <span style={{...s.mediaPill, color:m.color, backgroundColor:m.bg}}>
+                        {m.icon}&nbsp;{m.label}
+                      </span>
+                      <span style={s.countLabel}>{count} שיעורים</span>
+                    </div>
+                    <h3 style={s.seriesTitle}>{ser.title}</h3>
+                    {ser.subtitle && <p style={s.seriesSub}>{ser.subtitle}</p>}
+                    <div style={s.cardFooter}>
+                      <span className="open-label" style={s.openLabel}>
+                        פתח סדרה
+                        <svg width="13" height="13" viewBox="0 0 16 16" fill="none"
+                          style={{display:'inline-block', verticalAlign:'middle', marginRight:4}}>
+                          <path d="M6 12l4-4-4-4" stroke="currentColor" strokeWidth="2.2"
+                            strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </main>
+
+      {/* ── Video modal ── */}
+      {selectedLesson && (() => {
+        const detected = detectMedia(selectedLesson.videoUrl);
+        const m = media(selectedLesson.mediaType);
+        return (
+          <div style={s.modalOverlay} onClick={() => setSelectedLesson(null)}>
+            <div style={s.modal} onClick={e => e.stopPropagation()}>
+
+              {/* Header */}
+              <div style={s.modalHeader}>
+                <div style={s.modalMeta}>
+                  <span style={{ ...s.miniPill, color:m.color, backgroundColor:m.bg }}>
+                    {m.icon} {m.label}
+                  </span>
+                  {selectedLesson.duration && (
+                    <span style={s.modalDuration}>⏱ {formatDuration(selectedLesson.duration)}</span>
+                  )}
+                </div>
+                <button style={s.closeBtn} onClick={() => setSelectedLesson(null)}>✕</button>
+              </div>
+
+              <h2 style={s.modalTitle}>{selectedLesson.title}</h2>
+
+              {/* Media player */}
+              {detected?.type === 'youtube' && (
+                <div style={s.videoWrap}>
+                  <iframe
+                    src={detected.src}
+                    style={s.videoFrame}
+                    allowFullScreen
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    frameBorder="0"
+                  />
+                </div>
+              )}
+
+              {detected?.type === 'audio' && (
+                <div style={s.audioWrap}>
+                  <div style={s.audioIcon}>♫</div>
+                  <audio controls style={s.audioPlayer} src={detected.src}>
+                    הדפדפן שלך אינו תומך בנגן שמע.
+                  </audio>
+                </div>
+              )}
+
+              {detected?.type === 'video' && (
+                <video controls style={s.nativeVideo} src={detected.src}>
+                  הדפדפן שלך אינו תומך בנגן וידאו.
+                </video>
+              )}
+
+              {detected?.type === 'pdf' && (
+                <div style={s.pdfWrap}>
+                  <iframe
+                    src={detected.src}
+                    style={s.pdfFrame}
+                    title="PDF viewer"
+                  />
+                  <a href={detected.src} target="_blank" rel="noreferrer" style={s.pdfLink}>
+                    ↗ פתח בחלון חדש
+                  </a>
+                </div>
+              )}
+
+              {detected?.type === 'link' && (
+                <a href={detected.src} target="_blank" rel="noreferrer" style={s.articleCard}>
+                  <div style={s.articleIcon}>✍</div>
+                  <div style={s.articleText}>
+                    <span style={s.articleLabel}>פתח מאמר</span>
+                    <span style={s.articleUrl}>{detected.src.replace(/^https?:\/\//, '').slice(0, 60)}</span>
+                  </div>
+                  <span style={s.articleArrow}>↗</span>
+                </a>
+              )}
+
+              {!detected && selectedLesson.videoUrl && (
+                <div style={s.noVideo}>סוג הקובץ אינו נתמך</div>
+              )}
+              {!detected && !selectedLesson.videoUrl && (
+                <div style={s.noVideo}>לא צורף קישור לשיעור זה</div>
+              )}
+
+              {/* Tags */}
+              {(selectedLesson.tags||[]).length > 0 && (
+                <div style={s.modalTags}>
+                  {selectedLesson.tags.map(tag => (
+                    <span key={tag} style={s.chipTag}>{tag}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+    </div>
+  );
+}
+
+// ─── Empty state ──────────────────────────────────────────────────────────────
+
+function Empty({ text, dark }) {
+  const col = dark ? 'rgba(255,255,255,0.35)' : C.faint;
+  const bdr = dark ? 'rgba(255,255,255,0.2)' : C.border;
+  return (
+    <div style={{
+      display:'flex', flexDirection:'column', alignItems:'center',
+      justifyContent:'center', padding:'80px 40px', gap:12,
+      gridColumn:'1/-1', color:col,
+    }}>
+      <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
+        <circle cx="20" cy="20" r="18" stroke={bdr} strokeWidth="2"/>
+        <path d="M14 20h12M20 14v12" stroke={bdr} strokeWidth="2" strokeLinecap="round"/>
+      </svg>
+      <span style={{fontSize:15}}>{text}</span>
+    </div>
+  );
+}
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
+const s = {
+
+  // Root — matches site blue so the iFrame is invisible
+  root: {
+    display:'flex', height:'100%', minHeight:'600px',
+    fontFamily:"'Heebo', Arial, sans-serif",
+    backgroundColor: SITE_BLUE,
+    color: C.text, overflow:'hidden',
+  },
+
+  // ── Sidebar ──
+  sidebar: {
+    width:230, minWidth:230, flexShrink:0,
+    background:`linear-gradient(180deg, ${C.navyDeep} 0%, ${C.navy} 100%)`,
+    display:'flex', flexDirection:'column',
+    boxShadow:'4px 0 30px rgba(0,0,0,0.25)',
+  },
+  brand: {
+    display:'flex', alignItems:'center', gap:10,
+    padding:'26px 20px 20px',
+    borderBottom:'1px solid rgba(255,255,255,0.07)',
+  },
+  brandDot: {
+    width:9, height:9, borderRadius:'50%',
+    backgroundColor:C.gold, flexShrink:0,
+    boxShadow:`0 0 8px ${C.gold}`,
+  },
+  brandText: {
+    color:'rgba(255,255,255,0.5)', fontSize:11,
+    letterSpacing:'1.8px', fontWeight:600, textTransform:'uppercase',
+  },
+  sidebarSection: {
+    color:C.gold, fontSize:10, fontWeight:700,
+    letterSpacing:'2.5px', textTransform:'uppercase',
+    margin:'20px 20px 8px',
+  },
+  topicNav: {
+    display:'flex', flexDirection:'column',
+    flex:1, overflowY:'auto', paddingBottom:16,
+  },
+  topicBtn: {
+    display:'flex', justifyContent:'space-between', alignItems:'center',
+    padding:'12px 20px', background:'none', border:'none',
+    borderRight:'3px solid transparent',  // indicator on right edge (faces content)
+    cursor:'pointer', color:'rgba(255,255,255,0.5)', fontSize:15,
+    textAlign:'right', width:'100%', fontFamily:'inherit',
+    transition:'all 0.18s ease',
+  },
+  topicActive: {
+    backgroundColor: C.gold,   // solid gold background — clearly selected, white text readable
+    color:'#fff', fontWeight:'700',
+    borderRightColor: 'transparent',
+  },
+  badge: {
+    fontSize:11, fontWeight:700, padding:'2px 8px',
+    borderRadius:20, backgroundColor:'rgba(255,255,255,0.1)',
+    color:'rgba(255,255,255,0.4)', minWidth:22, textAlign:'center',
+    transition:'all 0.18s',
+  },
+  badgeActive: { backgroundColor:'rgba(0,0,0,0.2)', color:'#fff' },
+  sidebarFooter: {
+    padding:'14px 20px',
+    borderTop:'1px solid rgba(255,255,255,0.06)',
+  },
+  footerText: { fontSize:11, color:'rgba(255,255,255,0.2)' },
+
+  // ── Main ──
+  main: {
+    flex:1, display:'flex', flexDirection:'column',
+    overflow:'hidden', minWidth:0,
+  },
+
+  // ── Toolbar (frosted, floats on blue) ──
+  toolbar: {
+    display:'flex', alignItems:'center', gap:12,
+    padding:'14px 22px',
+    backgroundColor:'rgba(255,255,255,0.12)',
+    backdropFilter:'blur(12px)',
+    WebkitBackdropFilter:'blur(12px)',
+    borderBottom:'1px solid rgba(255,255,255,0.12)',
+    flexShrink:0, flexWrap:'wrap',
+  },
+  searchWrap: {
+    display:'flex', alignItems:'center', gap:8,
+    flex:1, maxWidth:400,
+    backgroundColor:'rgba(255,255,255,0.15)',
+    border:'1.5px solid rgba(255,255,255,0.25)',
+    borderRadius:100, padding:'8px 16px',
+    transition:'border-color 0.18s',
+  },
+  searchInput: {
+    flex:1, border:'none', background:'none', outline:'none',
+    fontSize:14, color:'#fff', direction:'rtl', fontFamily:'inherit',
+  },
+  clearBtn: {
+    background:'none', border:'none', cursor:'pointer',
+    color:'rgba(255,255,255,0.5)', fontSize:12,
+    padding:'0 2px', lineHeight:1,
+  },
+  filters: { display:'flex', gap:6, flexWrap:'wrap' },
+  filterBtn: {
+    padding:'7px 14px', borderRadius:100,
+    border:'1.5px solid rgba(255,255,255,0.25)',
+    backgroundColor:'rgba(255,255,255,0.1)',
+    cursor:'pointer', fontSize:13,
+    color:'rgba(255,255,255,0.75)',
+    fontFamily:'inherit', transition:'all 0.18s',
+    whiteSpace:'nowrap',
+  },
+  filterBtnActive: {
+    backgroundColor:'#fff',
+    borderColor:'#fff', color:C.blue,
+    fontWeight:700,
+  },
+
+  // ── Series grid (white cards on blue) ──
+  seriesGrid: {
+    display:'grid',
+    gridTemplateColumns:'repeat(auto-fill, minmax(260px, 1fr))',
+    gap:20, padding:'24px 22px',
+    overflowY:'auto', flex:1, alignContent:'start',
+  },
+  seriesCard: {
+    backgroundColor:C.white, borderRadius:16,
+    border:'none', overflow:'hidden', cursor:'pointer',
+    display:'flex', flexDirection:'column',
+    boxShadow:'0 4px 24px rgba(0,0,0,0.18)',
+    transition:'transform 0.22s ease, box-shadow 0.22s ease',
+  },
+  cardStripe: { height:4, flexShrink:0 },
+  cardBody: {
+    display:'flex', flexDirection:'column',
+    gap:10, padding:'20px 22px 18px', flex:1,
+  },
+  cardTop: {
+    display:'flex', justifyContent:'space-between', alignItems:'center',
+  },
+  mediaPill: {
+    fontSize:11, fontWeight:700, padding:'3px 10px', borderRadius:20,
+  },
+  countLabel: { fontSize:12, color:C.faint, fontWeight:500 },
+  seriesTitle: {
+    fontSize:17, fontWeight:800, color:C.navy, lineHeight:1.4, margin:'2px 0',
+  },
+  seriesSub: { fontSize:13, color:C.muted, lineHeight:1.6 },
+  cardFooter: {
+    marginTop:'auto', paddingTop:12,
+    borderTop:`1px solid ${C.border}`,
+  },
+  openLabel: {
+    fontSize:13, fontWeight:600, color:C.navy,
+    display:'flex', alignItems:'center', gap:4,
+  },
+
+  // ── Lessons (white panel on blue) ──
+  lessonsWrap: {
+    flex:1, overflow:'hidden',
+    display:'flex', flexDirection:'column',
+    padding:'20px 22px 22px',
+  },
+  lessonsPanel: {
+    flex:1, overflow:'hidden',
+    display:'flex', flexDirection:'column',
+    backgroundColor:C.white,
+    borderRadius:18,
+    boxShadow:'0 4px 30px rgba(0,0,0,0.18)',
+  },
+  lessonsHead: {
+    display:'flex', alignItems:'flex-start', gap:16,
+    padding:'18px 22px',
+    borderBottom:`1px solid ${C.border}`,
+    flexShrink:0,
+  },
+  backBtn: {
+    display:'flex', alignItems:'center', gap:5,
+    background:'none', border:`1.5px solid ${C.border}`,
+    borderRadius:100, padding:'7px 14px',
+    cursor:'pointer', fontSize:13, color:C.muted,
+    fontFamily:'inherit', transition:'all 0.15s',
+    flexShrink:0, marginTop:4, whiteSpace:'nowrap',
+  },
+  lessonsMeta: { display:'flex', flexDirection:'column', gap:5 },
+  miniPill: {
+    fontSize:11, fontWeight:700, padding:'2px 10px',
+    borderRadius:20, alignSelf:'flex-start',
+  },
+  lessonsTitle: {
+    fontSize:21, fontWeight:900, color:C.navy, lineHeight:1.3,
+  },
+  lessonsSub: { fontSize:14, color:C.muted, marginTop:2 },
+  lessonList: {
+    flex:1, overflowY:'auto', padding:'8px 22px 22px',
+  },
+  lessonRow: {
+    display:'flex', alignItems:'center', gap:14,
+    padding:'13px 12px', borderRadius:12, cursor:'pointer',
+    transition:'background 0.15s', marginBottom:2,
+  },
+  lessonNum: {
+    width:32, height:32, borderRadius:'50%',
+    background:`linear-gradient(135deg, ${C.navy} 0%, ${SITE_BLUE} 100%)`,
+    display:'flex', alignItems:'center', justifyContent:'center',
+    fontSize:12, fontWeight:800, color:'#fff', flexShrink:0,
+  },
+  lessonBody: {
+    flex:1, display:'flex', flexDirection:'column',
+    gap:5, minWidth:0,
+  },
+  lessonTitle: { fontSize:15, fontWeight:600, color:C.text, lineHeight:1.4 },
+  chips: { display:'flex', gap:8, flexWrap:'wrap', alignItems:'center' },
+  chip: { fontSize:11, fontWeight:600, padding:'2px 8px', borderRadius:20 },
+  chipGray: { fontSize:11, color:C.muted },
+  chipTag: {
+    fontSize:11, color:C.gold,
+    border:'1px solid rgba(184,135,58,0.35)',
+    borderRadius:6, padding:'1px 7px',
+    backgroundColor:C.goldPale,
+  },
+
+  // Play button indicator on lesson rows
+  playBtn: {
+    width:28, height:28, borderRadius:'50%',
+    backgroundColor:C.navy, color:'#fff',
+    display:'flex', alignItems:'center', justifyContent:'center',
+    fontSize:10, flexShrink:0,
+    boxShadow:`0 2px 8px rgba(27,63,106,0.3)`,
+  },
+
+  // ── Video modal ──
+  modalOverlay: {
+    position:'absolute', inset:0,
+    backgroundColor:'rgba(10,20,45,0.75)',
+    backdropFilter:'blur(6px)',
+    WebkitBackdropFilter:'blur(6px)',
+    display:'flex', alignItems:'center', justifyContent:'center',
+    zIndex:1000, padding:24,
+  },
+  modal: {
+    backgroundColor:C.white,
+    borderRadius:20,
+    width:'100%', maxWidth:720,
+    maxHeight:'90%',
+    overflowY:'auto',
+    boxShadow:'0 24px 80px rgba(0,0,0,0.45)',
+    display:'flex', flexDirection:'column', gap:16,
+    padding:'24px 28px 28px',
+  },
+  modalHeader: {
+    display:'flex', justifyContent:'space-between',
+    alignItems:'center', gap:12,
+  },
+  modalMeta: { display:'flex', alignItems:'center', gap:10 },
+  modalDuration: { fontSize:13, color:C.muted },
+  closeBtn: {
+    width:32, height:32, borderRadius:'50%',
+    border:`1.5px solid ${C.border}`,
+    backgroundColor:'transparent',
+    cursor:'pointer', color:C.muted,
+    fontSize:14, display:'flex', alignItems:'center',
+    justifyContent:'center', flexShrink:0,
+    transition:'all 0.15s',
+  },
+  modalTitle: {
+    fontSize:21, fontWeight:900, color:C.navy,
+    lineHeight:1.35, margin:0,
+  },
+  videoWrap: {
+    position:'relative', width:'100%',
+    paddingBottom:'56.25%', // 16:9
+    borderRadius:12, overflow:'hidden',
+    backgroundColor:'#000',
+  },
+  videoFrame: {
+    position:'absolute', inset:0,
+    width:'100%', height:'100%', border:'none',
+  },
+  noVideo: {
+    padding:'40px 0', textAlign:'center',
+    color:C.faint, fontSize:15,
+  },
+
+  // Audio player
+  audioWrap: {
+    display:'flex', flexDirection:'column', alignItems:'center',
+    gap:20, padding:'32px 20px',
+    backgroundColor:C.cream, borderRadius:14,
+  },
+  audioIcon: {
+    width:72, height:72, borderRadius:'50%',
+    background:`linear-gradient(135deg, ${C.navy} 0%, ${SITE_BLUE} 100%)`,
+    display:'flex', alignItems:'center', justifyContent:'center',
+    fontSize:28, color:'#fff',
+    boxShadow:`0 8px 24px rgba(27,63,106,0.3)`,
+  },
+  audioPlayer: {
+    width:'100%', maxWidth:480,
+    accentColor: C.navy,
+  },
+
+  // Native video (mp4 etc.)
+  nativeVideo: {
+    width:'100%', borderRadius:12,
+    backgroundColor:'#000', maxHeight:400,
+  },
+
+  // PDF viewer
+  pdfWrap: {
+    display:'flex', flexDirection:'column', gap:10,
+  },
+  pdfFrame: {
+    width:'100%', height:500, border:'none',
+    borderRadius:12, backgroundColor:C.cream,
+  },
+  pdfLink: {
+    alignSelf:'flex-end', fontSize:13,
+    color:C.navy, fontWeight:600,
+    textDecoration:'none',
+  },
+
+  // Article / external link card
+  articleCard: {
+    display:'flex', alignItems:'center', gap:16,
+    padding:'20px 22px',
+    backgroundColor:C.cream, borderRadius:14,
+    border:`1.5px solid ${C.border}`,
+    textDecoration:'none', color:'inherit',
+    transition:'box-shadow 0.18s, border-color 0.18s',
+    cursor:'pointer',
+  },
+  articleIcon: {
+    width:48, height:48, borderRadius:12,
+    background:`linear-gradient(135deg, ${C.navy} 0%, ${SITE_BLUE} 100%)`,
+    display:'flex', alignItems:'center', justifyContent:'center',
+    fontSize:22, color:'#fff', flexShrink:0,
+  },
+  articleText: {
+    display:'flex', flexDirection:'column', gap:4, flex:1, minWidth:0,
+  },
+  articleLabel: {
+    fontSize:16, fontWeight:700, color:C.navy,
+  },
+  articleUrl: {
+    fontSize:12, color:C.faint,
+    overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap',
+    direction:'ltr', textAlign:'right',
+  },
+  articleArrow: {
+    fontSize:20, color:C.faint, flexShrink:0,
+  },
+  modalTags: { display:'flex', gap:8, flexWrap:'wrap' },
+};
+
+// ─── Global CSS ───────────────────────────────────────────────────────────────
+
+const css = `
+  * { box-sizing: border-box; }
+
+  /* Reset browser default button background — prevents white flash on topic buttons */
+  button { -webkit-appearance: none; appearance: none; }
+  .topic-btn { background-color: transparent !important; }
+  .topic-btn.active { background-color: ${C.gold} !important; }
+
+  .topic-btn:hover:not(.active) {
+    background-color: rgba(255,255,255,0.09) !important;
+    color: rgba(255,255,255,0.85) !important;
+  }
+
+  .series-card:hover {
+    transform: translateY(-6px) !important;
+    box-shadow: 0 20px 48px rgba(0,0,0,0.28) !important;
+  }
+
+  .lesson-row:hover {
+    background-color: ${C.cream} !important;
+  }
+
+  .back-btn:hover {
+    background-color: ${C.cream} !important;
+    color: ${C.navy} !important;
+    border-color: ${C.navy} !important;
+  }
+
+  .filter-btn:hover:not(.active) {
+    background-color: rgba(255,255,255,0.22) !important;
+    color: #fff !important;
+  }
+
+  .bavua-search::placeholder { color: rgba(255,255,255,0.45); }
+
+  /* Modal close button */
+  button[style*="border-radius: 50%"]:hover,
+  .close-btn:hover { background-color: ${C.cream} !important; color: ${C.navy} !important; }
+  .bavua-search:focus { outline: none; }
+
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius:10px; }
+`;
