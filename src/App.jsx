@@ -95,6 +95,15 @@ export default function App({ data }) {
   const [query,          setQuery]          = useState('');
   const [filter,         setFilter]         = useState('all');
   const [selectedLesson, setSelectedLesson] = useState(null);
+  const [isMobile,       setIsMobile]       = useState(
+    () => typeof window !== 'undefined' && window.innerWidth < 640
+  );
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 640);
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
 
   useEffect(() => {
     if (!document.getElementById('bavua-font')) {
@@ -131,50 +140,85 @@ export default function App({ data }) {
         l.description?.toLowerCase().includes(query.toLowerCase())
       );
 
+  // ── Mobile topic strip ──────────────────────────────────────────────────────
+  const MobileTopicStrip = () => (
+    <>
+      <div style={s.mobileHeader}>
+        <div style={s.brandDot} />
+        <span style={s.brandText}>ספריית התוכן</span>
+      </div>
+      <div className="mobile-topic-strip" style={s.mobileTopicStrip}>
+        {topics.map(t => {
+          const active = t._id === topicId;
+          return (
+            <button
+              key={t._id}
+              className={`mobile-topic-btn${active ? ' active' : ''}`}
+              style={{ ...s.mobileTopicBtn, ...(active ? s.mobileTopicBtnActive : {}) }}
+              onClick={() => goTopic(t._id)}
+            >
+              {t.title}
+            </button>
+          );
+        })}
+      </div>
+    </>
+  );
+
   return (
-    <div dir="rtl" style={s.root}>
+    <div dir="rtl" style={{ ...s.root, flexDirection: isMobile ? 'column' : 'row', minHeight: isMobile ? 0 : 600 }}>
       <style>{css}</style>
 
-      {/* ── Sidebar — on the LEFT so it's never clipped by the iFrame edge ── */}
-      <aside style={s.sidebar}>
+      {/* ── Mobile: brand + topic strip ── */}
+      {isMobile && <MobileTopicStrip />}
 
-        <div style={s.brand}>
-          <div style={s.brandDot} />
-          <span style={s.brandText}>ספריית התוכן</span>
-        </div>
+      {/* ── Desktop sidebar ── */}
+      {!isMobile && (
+        <aside style={s.sidebar}>
+          <div style={s.brand}>
+            <div style={s.brandDot} />
+            <span style={s.brandText}>ספריית התוכן</span>
+          </div>
 
-        <div style={s.sidebarSection}>נושאים</div>
+          <div style={s.sidebarSection}>נושאים</div>
 
-        <nav style={s.topicNav}>
-          {topics.map(t => {
-            const active = t._id === topicId;
-            return (
-              <button
-                key={t._id}
-                className={`topic-btn${active?' active':''}`}
-                style={{ ...s.topicBtn, ...(active ? s.topicActive : {}) }}
-                onClick={() => goTopic(t._id)}
-              >
-                <span>{t.title}</span>
-                <span style={{ ...s.badge, ...(active ? s.badgeActive : {}) }}>
-                  {lessonCount(t._id)}
-                </span>
-              </button>
-            );
-          })}
-        </nav>
+          <nav style={s.topicNav}>
+            {topics.map(t => {
+              const active = t._id === topicId;
+              return (
+                <button
+                  key={t._id}
+                  className={`topic-btn${active?' active':''}`}
+                  style={{ ...s.topicBtn, ...(active ? s.topicActive : {}) }}
+                  onClick={() => goTopic(t._id)}
+                >
+                  <span>{t.title}</span>
+                  <span style={{ ...s.badge, ...(active ? s.badgeActive : {}) }}>
+                    {lessonCount(t._id)}
+                  </span>
+                </button>
+              );
+            })}
+          </nav>
 
-        <div style={s.sidebarFooter}>
-          <span style={s.footerText}>בבואה © {new Date().getFullYear()}</span>
-        </div>
-      </aside>
+          <div style={s.sidebarFooter}>
+            <span style={s.footerText}>בבואה © {new Date().getFullYear()}</span>
+          </div>
+        </aside>
+      )}
 
       {/* ── Main ──────────────────────────────────────────────────────── */}
       <main style={s.main}>
 
         {/* Toolbar */}
-        <header style={s.toolbar}>
-          <div style={s.searchWrap}>
+        <header style={{
+          ...s.toolbar,
+          flexDirection: isMobile ? 'column' : 'row',
+          alignItems:    isMobile ? 'stretch' : 'center',
+          padding:       isMobile ? '12px 14px' : '14px 22px',
+          gap:           isMobile ? 10 : 12,
+        }}>
+          <div style={{ ...s.searchWrap, maxWidth: isMobile ? 'none' : 400 }}>
             <svg width="15" height="15" viewBox="0 0 20 20" fill="none" style={{flexShrink:0}}>
               <circle cx="9" cy="9" r="6" stroke="rgba(255,255,255,0.5)" strokeWidth="2"/>
               <path d="M14 14l3 3" stroke="rgba(255,255,255,0.5)" strokeWidth="2" strokeLinecap="round"/>
@@ -193,7 +237,14 @@ export default function App({ data }) {
           </div>
 
           {!inLessons && (
-            <div style={s.filters}>
+            <div
+              className="filter-strip"
+              style={{
+                ...s.filters,
+                flexWrap:  isMobile ? 'nowrap' : 'wrap',
+                overflowX: isMobile ? 'auto'   : 'visible',
+              }}
+            >
               {[
                 { key:'all',   label:'הכל'      },
                 { key:'video', label:'▶ וידאו'   },
@@ -217,11 +268,19 @@ export default function App({ data }) {
         {inLessons ? (
 
           /* ── Lessons panel ── */
-          <div style={s.lessonsWrap}>
+          <div style={{
+            ...s.lessonsWrap,
+            padding: isMobile ? '10px 10px 14px' : '20px 22px 22px',
+          }}>
             <div style={s.lessonsPanel}>
 
               {/* Lessons header */}
-              <div style={s.lessonsHead}>
+              <div style={{
+                ...s.lessonsHead,
+                padding:        isMobile ? '14px 14px' : '18px 22px',
+                gap:            isMobile ? 10 : 16,
+                flexWrap:       isMobile ? 'wrap' : 'nowrap',
+              }}>
                 <button
                   className="back-btn"
                   style={s.backBtn}
@@ -243,7 +302,7 @@ export default function App({ data }) {
                       {media(currentSeries.mediaType).icon} {media(currentSeries.mediaType).label}
                     </span>
                   )}
-                  <h2 style={s.lessonsTitle}>
+                  <h2 style={{ ...s.lessonsTitle, fontSize: isMobile ? 17 : 21 }}>
                     {query ? `תוצאות: "${query}"` : currentSeries?.title || ''}
                   </h2>
                   {currentSeries?.subtitle && (
@@ -253,7 +312,10 @@ export default function App({ data }) {
               </div>
 
               {/* Lesson rows */}
-              <div style={s.lessonList}>
+              <div style={{
+                ...s.lessonList,
+                padding: isMobile ? '6px 10px 16px' : '8px 22px 22px',
+              }}>
                 {visibleLessons.length === 0 && (
                   <Empty text="לא נמצאו שיעורים" dark={false} />
                 )}
@@ -264,12 +326,12 @@ export default function App({ data }) {
                     <div
                       key={lesson._id}
                       className="lesson-row"
-                      style={{ ...s.lessonRow, cursor: hasVideo ? 'pointer' : 'default' }}
+                      style={{ ...s.lessonRow, cursor: hasVideo ? 'pointer' : 'default', padding: isMobile ? '11px 8px' : '13px 12px' }}
                       onClick={() => hasVideo && setSelectedLesson(lesson)}
                     >
                       <div style={s.lessonNum}>{i + 1}</div>
                       <div style={s.lessonBody}>
-                        <span style={s.lessonTitle}>{lesson.title}</span>
+                        <span style={{ ...s.lessonTitle, fontSize: isMobile ? 14 : 15 }}>{lesson.title}</span>
                         <div style={s.chips}>
                           {lesson.mediaType && (
                             <span style={{...s.chip, color:m.color, backgroundColor:m.bg}}>
@@ -302,8 +364,15 @@ export default function App({ data }) {
 
         ) : (
 
-          /* ── Series grid (floats on site blue) ── */
-          <div style={s.seriesGrid}>
+          /* ── Series grid ── */
+          <div style={{
+            ...s.seriesGrid,
+            gridTemplateColumns: isMobile
+              ? 'repeat(auto-fill, minmax(200px, 1fr))'
+              : 'repeat(auto-fill, minmax(260px, 1fr))',
+            padding: isMobile ? '14px' : '24px 22px',
+            gap:     isMobile ? 14 : 20,
+          }}>
             {visibleSeries.length === 0 && <Empty text="אין סדרות לנושא זה" dark />}
             {visibleSeries.map(ser => {
               const count = lessons.filter(l => l.series === ser._id).length;
@@ -316,14 +385,14 @@ export default function App({ data }) {
                   onClick={() => setSeriesId(ser._id)}
                 >
                   <div style={{...s.cardStripe, backgroundColor: m.color}} />
-                  <div style={s.cardBody}>
+                  <div style={{ ...s.cardBody, padding: isMobile ? '16px 16px 14px' : '20px 22px 18px' }}>
                     <div style={s.cardTop}>
                       <span style={{...s.mediaPill, color:m.color, backgroundColor:m.bg}}>
                         {m.icon}&nbsp;{m.label}
                       </span>
                       <span style={s.countLabel}>{count} שיעורים</span>
                     </div>
-                    <h3 style={s.seriesTitle}>{ser.title}</h3>
+                    <h3 style={{ ...s.seriesTitle, fontSize: isMobile ? 15 : 17 }}>{ser.title}</h3>
                     {ser.subtitle && <p style={s.seriesSub}>{ser.subtitle}</p>}
                     <div style={s.cardFooter}>
                       <span className="open-label" style={s.openLabel}>
@@ -348,8 +417,24 @@ export default function App({ data }) {
         const detected = detectMedia(selectedLesson.videoUrl);
         const m = media(selectedLesson.mediaType);
         return (
-          <div style={s.modalOverlay} onClick={() => setSelectedLesson(null)}>
-            <div style={s.modal} onClick={e => e.stopPropagation()}>
+          <div
+            style={{
+              ...s.modalOverlay,
+              padding:     isMobile ? 0 : 24,
+              alignItems:  isMobile ? 'flex-end' : 'center',
+            }}
+            onClick={() => setSelectedLesson(null)}
+          >
+            <div
+              style={{
+                ...s.modal,
+                borderRadius: isMobile ? '20px 20px 0 0' : 20,
+                maxHeight:    isMobile ? '92%' : '90%',
+                padding:      isMobile ? '20px 16px 28px' : '24px 28px 28px',
+                width:        '100%',
+              }}
+              onClick={e => e.stopPropagation()}
+            >
 
               {/* Header */}
               <div style={s.modalHeader}>
@@ -364,7 +449,7 @@ export default function App({ data }) {
                 <button style={s.closeBtn} onClick={() => setSelectedLesson(null)}>✕</button>
               </div>
 
-              <h2 style={s.modalTitle}>{selectedLesson.title}</h2>
+              <h2 style={{ ...s.modalTitle, fontSize: isMobile ? 18 : 21 }}>{selectedLesson.title}</h2>
 
               {/* Media player */}
               {detected?.type === 'youtube' && (
@@ -398,7 +483,7 @@ export default function App({ data }) {
                 <div style={s.pdfWrap}>
                   <iframe
                     src={detected.src}
-                    style={s.pdfFrame}
+                    style={{ ...s.pdfFrame, height: isMobile ? 280 : 500 }}
                     title="PDF viewer"
                   />
                   <a href={detected.src} target="_blank" rel="noreferrer" style={s.pdfLink}>
@@ -467,13 +552,41 @@ const s = {
 
   // Root — matches site blue so the iFrame is invisible
   root: {
-    display:'flex', height:'100%', minHeight:'600px',
+    display:'flex', height:'100%', minHeight:600,
     fontFamily:"'Heebo', Arial, sans-serif",
     backgroundColor: SITE_BLUE,
     color: C.text, overflow:'hidden',
   },
 
-  // ── Sidebar ──
+  // ── Mobile header & topic strip ──
+  mobileHeader: {
+    display:'flex', alignItems:'center', gap:10,
+    padding:'14px 16px 12px',
+    backgroundColor: C.navyDeep,
+    flexShrink:0,
+    borderBottom:'1px solid rgba(255,255,255,0.07)',
+  },
+  mobileTopicStrip: {
+    display:'flex', overflowX:'auto',
+    backgroundColor: C.navyDeep,
+    padding:'10px 14px', gap:8,
+    flexShrink:0,
+    borderBottom:'2px solid rgba(255,255,255,0.06)',
+  },
+  mobileTopicBtn: {
+    whiteSpace:'nowrap', padding:'8px 16px',
+    borderRadius:100,
+    border:'1.5px solid rgba(255,255,255,0.2)',
+    cursor:'pointer', fontSize:14, fontFamily:'inherit',
+    color:'rgba(255,255,255,0.7)', backgroundColor:'transparent',
+    flexShrink:0, transition:'all 0.18s',
+  },
+  mobileTopicBtnActive: {
+    backgroundColor: C.gold, borderColor: C.gold,
+    color:'#fff', fontWeight:700,
+  },
+
+  // ── Desktop Sidebar ──
   sidebar: {
     width:230, minWidth:230, flexShrink:0,
     background:`linear-gradient(180deg, ${C.navyDeep} 0%, ${C.navy} 100%)`,
@@ -506,13 +619,13 @@ const s = {
   topicBtn: {
     display:'flex', justifyContent:'space-between', alignItems:'center',
     padding:'12px 20px', background:'none', border:'none',
-    borderRight:'3px solid transparent',  // indicator on right edge (faces content)
+    borderRight:'3px solid transparent',
     cursor:'pointer', color:'rgba(255,255,255,0.5)', fontSize:15,
     textAlign:'right', width:'100%', fontFamily:'inherit',
     transition:'all 0.18s ease',
   },
   topicActive: {
-    backgroundColor: C.gold,   // solid gold background — clearly selected, white text readable
+    backgroundColor: C.gold,
     color:'#fff', fontWeight:'700',
     borderRightColor: 'transparent',
   },
@@ -535,7 +648,7 @@ const s = {
     overflow:'hidden', minWidth:0,
   },
 
-  // ── Toolbar (frosted, floats on blue) ──
+  // ── Toolbar ──
   toolbar: {
     display:'flex', alignItems:'center', gap:12,
     padding:'14px 22px',
@@ -570,7 +683,7 @@ const s = {
     cursor:'pointer', fontSize:13,
     color:'rgba(255,255,255,0.75)',
     fontFamily:'inherit', transition:'all 0.18s',
-    whiteSpace:'nowrap',
+    whiteSpace:'nowrap', flexShrink:0,
   },
   filterBtnActive: {
     backgroundColor:'#fff',
@@ -578,7 +691,7 @@ const s = {
     fontWeight:700,
   },
 
-  // ── Series grid (white cards on blue) ──
+  // ── Series grid ──
   seriesGrid: {
     display:'grid',
     gridTemplateColumns:'repeat(auto-fill, minmax(260px, 1fr))',
@@ -617,7 +730,7 @@ const s = {
     display:'flex', alignItems:'center', gap:4,
   },
 
-  // ── Lessons (white panel on blue) ──
+  // ── Lessons ──
   lessonsWrap: {
     flex:1, overflow:'hidden',
     display:'flex', flexDirection:'column',
@@ -681,8 +794,6 @@ const s = {
     borderRadius:6, padding:'1px 7px',
     backgroundColor:C.goldPale,
   },
-
-  // Play button indicator on lesson rows
   playBtn: {
     width:28, height:28, borderRadius:'50%',
     backgroundColor:C.navy, color:'#fff',
@@ -691,7 +802,7 @@ const s = {
     boxShadow:`0 2px 8px rgba(27,63,106,0.3)`,
   },
 
-  // ── Video modal ──
+  // ── Modal ──
   modalOverlay: {
     position:'absolute', inset:0,
     backgroundColor:'rgba(10,20,45,0.75)',
@@ -731,7 +842,7 @@ const s = {
   },
   videoWrap: {
     position:'relative', width:'100%',
-    paddingBottom:'56.25%', // 16:9
+    paddingBottom:'56.25%',
     borderRadius:12, overflow:'hidden',
     backgroundColor:'#000',
   },
@@ -743,8 +854,6 @@ const s = {
     padding:'40px 0', textAlign:'center',
     color:C.faint, fontSize:15,
   },
-
-  // Audio player
   audioWrap: {
     display:'flex', flexDirection:'column', alignItems:'center',
     gap:20, padding:'32px 20px',
@@ -761,14 +870,10 @@ const s = {
     width:'100%', maxWidth:480,
     accentColor: C.navy,
   },
-
-  // Native video (mp4 etc.)
   nativeVideo: {
     width:'100%', borderRadius:12,
     backgroundColor:'#000', maxHeight:400,
   },
-
-  // PDF viewer
   pdfWrap: {
     display:'flex', flexDirection:'column', gap:10,
   },
@@ -781,8 +886,6 @@ const s = {
     color:C.navy, fontWeight:600,
     textDecoration:'none',
   },
-
-  // Article / external link card
   articleCard: {
     display:'flex', alignItems:'center', gap:16,
     padding:'20px 22px',
@@ -820,7 +923,7 @@ const s = {
 const css = `
   * { box-sizing: border-box; }
 
-  /* Reset browser default button background — prevents white flash on topic buttons */
+  /* Reset browser default button background */
   button { -webkit-appearance: none; appearance: none; }
   .topic-btn { background-color: transparent !important; }
   .topic-btn.active { background-color: ${C.gold} !important; }
@@ -851,11 +954,21 @@ const css = `
   }
 
   .bavua-search::placeholder { color: rgba(255,255,255,0.45); }
-
-  /* Modal close button */
-  button[style*="border-radius: 50%"]:hover,
-  .close-btn:hover { background-color: ${C.cream} !important; color: ${C.navy} !important; }
   .bavua-search:focus { outline: none; }
+
+  /* Mobile topic strip */
+  .mobile-topic-btn { background-color: transparent !important; }
+  .mobile-topic-btn.active { background-color: ${C.gold} !important; border-color: ${C.gold} !important; }
+  .mobile-topic-btn:hover:not(.active) {
+    background-color: rgba(255,255,255,0.12) !important;
+    color: rgba(255,255,255,0.9) !important;
+  }
+
+  /* Hide scrollbars on mobile strips */
+  .mobile-topic-strip::-webkit-scrollbar { display: none; }
+  .mobile-topic-strip { scrollbar-width: none; -ms-overflow-style: none; }
+  .filter-strip::-webkit-scrollbar { display: none; }
+  .filter-strip { scrollbar-width: none; -ms-overflow-style: none; }
 
   ::-webkit-scrollbar { width: 4px; }
   ::-webkit-scrollbar-track { background: transparent; }
