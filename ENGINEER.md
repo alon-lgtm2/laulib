@@ -81,26 +81,36 @@ The app runs with local mock data (`DEV_DATA` in `src/main.jsx`) — no Wix conn
 
 ## Build & Deploy to Netlify
 
-### One-time setup
+The Netlify site is connected to the GitHub repo (`alon-lgtm2/laulib`) for continuous deployment.
+
+### Deploy (normal workflow)
+
+```bash
+git add .
+git commit -m "your message"
+git push origin main
+```
+
+That's it — Netlify detects the push, runs `npm run build`, and publishes `dist/` automatically. The site is live within ~1 minute.
+
+Live URL: **https://famous-malabi-a80fce.netlify.app**
+
+### Manual deploy (if needed)
+
+If you ever need to deploy without pushing to GitHub (e.g. quick test):
 
 ```bash
 npm install -g netlify-cli
 netlify login      # opens browser auth
-```
-
-### Deploy
-
-```bash
 npm run build
 netlify deploy --dir=dist --site=5bb3050a-a333-4fc1-8b57-4c4a3374323c --prod
 ```
 
 The site ID is `5bb3050a-a333-4fc1-8b57-4c4a3374323c` (Netlify site: `famous-malabi-a80fce`).
 
-### Granting Netlify access
+### Netlify dashboard access
 
-Ask the site owner (Alon) to invite you at:
-**https://app.netlify.com/projects/famous-malabi-a80fce/settings/members**
+The site owner (Alon) manages Netlify. You don't need a Netlify account — just push to `main`.
 
 ---
 
