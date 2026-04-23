@@ -95,6 +95,7 @@ export default function App({ data }) {
   const [query,          setQuery]          = useState('');
   const [filter,         setFilter]         = useState('all');
   const [selectedLesson, setSelectedLesson] = useState(null);
+  const [sharedId,       setSharedId]       = useState(null); // id of lesson just shared
   const [isMobile,       setIsMobile]       = useState(
     () => typeof window !== 'undefined' && window.innerWidth < 640
   );
@@ -124,6 +125,39 @@ export default function App({ data }) {
   }
 
   function goTopic(tid) { setTopicId(tid); setSeriesId(null); setQuery(''); setFilter('all'); }
+
+  function shareLesson(lesson, e) {
+    e.stopPropagation();
+    const url  = lesson.videoUrl || 'https://liron03.wixstudio.com/bavua/blank-1-1';
+    const text = lesson.title;
+
+    const markShared = () => {
+      setSharedId(lesson._id);
+      setTimeout(() => setSharedId(null), 2000);
+    };
+
+    const copyFallback = () => {
+      try {
+        navigator.clipboard.writeText(url).then(markShared).catch(markShared);
+      } catch {
+        // last-resort for restrictive iframe contexts
+        const ta = document.createElement('textarea');
+        ta.value = url; ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta); ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        markShared();
+      }
+    };
+
+    if (navigator.share) {
+      navigator.share({ title: text, url }).then(markShared).catch(err => {
+        if (err.name !== 'AbortError') copyFallback();
+      });
+    } else {
+      copyFallback();
+    }
+  }
 
   const inLessons     = !!seriesId || !!query;
   const currentSeries = series.find(s => s._id === seriesId);
@@ -348,6 +382,25 @@ export default function App({ data }) {
                           ))}
                         </div>
                       </div>
+                      {/* Share button */}
+                      <button
+                        className="share-btn"
+                        style={{ ...s.shareBtn, color: sharedId === lesson._id ? '#059669' : C.faint }}
+                        onClick={e => shareLesson(lesson, e)}
+                        title="שתף שיעור"
+                      >
+                        {sharedId === lesson._id ? (
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="20 6 9 17 4 12"/>
+                          </svg>
+                        ) : (
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/>
+                            <polyline points="16 6 12 2 8 6"/>
+                            <line x1="12" y1="2" x2="12" y2="15"/>
+                          </svg>
+                        )}
+                      </button>
                       {hasVideo ? (
                         <div style={s.playBtn}>▶</div>
                       ) : (
@@ -448,7 +501,27 @@ export default function App({ data }) {
                     <span style={s.modalDuration}>⏱ {formatDuration(selectedLesson.duration)}</span>
                   )}
                 </div>
-                <button style={s.closeBtn} onClick={() => setSelectedLesson(null)}>✕</button>
+                <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                  <button
+                    className="share-btn"
+                    style={{ ...s.closeBtn, color: sharedId === selectedLesson._id ? '#059669' : C.muted }}
+                    onClick={e => shareLesson(selectedLesson, e)}
+                    title="שתף שיעור"
+                  >
+                    {sharedId === selectedLesson._id ? (
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12"/>
+                      </svg>
+                    ) : (
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/>
+                        <polyline points="16 6 12 2 8 6"/>
+                        <line x1="12" y1="2" x2="12" y2="15"/>
+                      </svg>
+                    )}
+                  </button>
+                  <button style={s.closeBtn} onClick={() => setSelectedLesson(null)}>✕</button>
+                </div>
               </div>
 
               <h2 style={{ ...s.modalTitle, fontSize: isMobile ? 18 : 21 }}>{selectedLesson.title}</h2>
@@ -800,6 +873,14 @@ const s = {
     borderRadius:6, padding:'1px 7px',
     backgroundColor:C.goldPale,
   },
+  shareBtn: {
+    background:'none', border:'none', cursor:'pointer',
+    padding:'5px', borderRadius:'50%',
+    display:'flex', alignItems:'center', justifyContent:'center',
+    flexShrink:0, transition:'color 0.2s, background 0.15s',
+    fontFamily:'inherit',
+  },
+
   playBtn: {
     width:28, height:28, borderRadius:'50%',
     backgroundColor:C.navy, color:'#fff',
@@ -958,6 +1039,8 @@ const css = `
     background-color: rgba(255,255,255,0.22) !important;
     color: #fff !important;
   }
+
+  .share-btn:hover { background-color: ${C.cream} !important; color: ${C.navy} !important; }
 
   .bavua-search::placeholder { color: rgba(255,255,255,0.45); }
   .bavua-search:focus { outline: none; }
