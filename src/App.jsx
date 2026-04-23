@@ -528,6 +528,9 @@ export default function App({ data }) {
               </div>
 
               <h2 style={{ ...s.modalTitle, fontSize: isMobile ? 18 : 21 }}>{selectedLesson.title}</h2>
+              {selectedLesson.subtitle && (
+                <p style={s.lessonSubtitle}>{selectedLesson.subtitle}</p>
+              )}
 
               {/* Media player */}
               {detected?.type === 'youtube' && (
