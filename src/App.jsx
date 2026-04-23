@@ -368,6 +368,9 @@ export default function App({ data }) {
                       <div style={s.lessonNum}>{i + 1}</div>
                       <div style={s.lessonBody}>
                         <span style={{ ...s.lessonTitle, fontSize: isMobile ? 14 : 15 }}>{lesson.title}</span>
+                        {lesson.subtitle && (
+                          <p style={s.lessonSubtitle}>{lesson.subtitle}</p>
+                        )}
                         <div style={s.chips}>
                           {lesson.mediaType && (
                             <span style={{...s.chip, color:m.color, backgroundColor:m.bg}}>
@@ -864,6 +867,7 @@ const s = {
     gap:5, minWidth:0,
   },
   lessonTitle: { fontSize:15, fontWeight:600, color:C.text, lineHeight:1.4 },
+  lessonSubtitle: { fontSize:12, color:C.muted, margin:'2px 0 0', lineHeight:1.4 },
   chips: { display:'flex', gap:8, flexWrap:'wrap', alignItems:'center' },
   chip: { fontSize:11, fontWeight:600, padding:'2px 8px', borderRadius:20 },
   chipGray: { fontSize:11, color:C.muted },

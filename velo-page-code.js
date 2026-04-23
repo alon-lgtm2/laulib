@@ -5,7 +5,7 @@ $w.onReady(async function () {
     const [topicsRes, seriesRes, lessonsRes] = await Promise.all([
       wixData.query('Topics').ascending('sortOrder').find(),
       wixData.query('Series').ascending('sortOrder').find(),
-      wixData.query('Lessons').eq('isPublished', true).ascending('sortOrder').find(),
+      wixData.query('Lessons').eq('isPublished', true).ascending('sortOrder').limit(1000).find(),
     ]);
 
     $w('#library').postMessage({
