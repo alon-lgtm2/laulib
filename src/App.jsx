@@ -47,6 +47,21 @@ function formatDuration(min) {
   return h > 0 ? `${h}:${String(m).padStart(2,'0')} ש'` : `${m} דק'`;
 }
 
+function ytThumb(url) {
+  if (!url) return null;
+  const patterns = [
+    /youtu\.be\/([^?&\s]+)/,
+    /[?&]v=([^?&\s]+)/,
+    /youtube\.com\/embed\/([^?&\s]+)/,
+    /youtube\.com\/shorts\/([^?&\s]+)/,
+  ];
+  for (const p of patterns) {
+    const m = url.match(p);
+    if (m) return `https://img.youtube.com/vi/${m[1]}/mqdefault.jpg`;
+  }
+  return null;
+}
+
 // Detect media type from any URL — one field handles everything
 function detectMedia(url) {
   if (!url) return null;
@@ -353,30 +368,48 @@ export default function App({ data }) {
 
               ) : (
 
-                /* ── Standard lesson list ── */
+                /* ── Lesson thumbnail grid ── */
                 <div style={{
-                  ...s.lessonList,
-                  padding: isMobile ? '6px 10px 16px' : '8px 22px 22px',
+                  display: 'grid',
+                  gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(auto-fill, minmax(220px, 1fr))',
+                  gap: isMobile ? 12 : 18,
+                  padding: isMobile ? '12px 10px 20px' : '18px 22px 26px',
                 }}>
                   {visibleLessons.length === 0 && (
                     <Empty text="לא נמצאו שיעורים" dark={false} />
                   )}
-                  {visibleLessons.map((lesson, i) => {
+                  {visibleLessons.map(lesson => {
+                    const thumb = ytThumb(lesson.videoUrl);
                     const hasVideo = !!lesson.videoUrl;
                     return (
                       <div
                         key={lesson._id}
-                        className="lesson-row"
-                        style={{ ...s.lessonRow, cursor: hasVideo ? 'pointer' : 'default', padding: isMobile ? '11px 8px' : '13px 12px' }}
+                        className="lesson-thumb-card"
+                        style={{ ...s.thumbCard, cursor: hasVideo ? 'pointer' : 'default' }}
                         onClick={() => hasVideo && setSelectedLesson(lesson)}
                       >
-                        <div style={s.lessonNum}>{i + 1}</div>
-                        <div style={s.lessonBody}>
-                          <span style={{ ...s.lessonTitle, fontSize: isMobile ? 14 : 15 }}>{lesson.title}</span>
-                          {lesson.subtitle && (
-                            <p style={s.lessonSubtitle}>{lesson.subtitle}</p>
+                        {/* Thumbnail */}
+                        <div style={s.thumbWrap}>
+                          {thumb ? (
+                            <img src={thumb} alt={lesson.title} style={s.thumbImg} />
+                          ) : (
+                            <div style={s.thumbPlaceholder}>
+                              {hasVideo ? '▶' : '♫'}
+                            </div>
                           )}
-                          <div style={s.chips}>
+                          {hasVideo && (
+                            <div className="thumb-play-overlay" style={s.thumbPlay}>
+                              <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
+                                <path d="M8 5v14l11-7z"/>
+                              </svg>
+                            </div>
+                          )}
+                        </div>
+                        {/* Info */}
+                        <div style={s.thumbInfo}>
+                          <span style={{ ...s.thumbTitle, fontSize: isMobile ? 13 : 14 }}>{lesson.title}</span>
+                          {lesson.subtitle && <p style={s.thumbSub}>{lesson.subtitle}</p>}
+                          <div style={{ ...s.chips, marginTop: 4 }}>
                             {lesson.duration && (
                               <span style={s.chipGray}>⏱ {formatDuration(lesson.duration)}</span>
                             )}
@@ -385,33 +418,6 @@ export default function App({ data }) {
                             ))}
                           </div>
                         </div>
-                        <button
-                          className="share-btn"
-                          style={{ ...s.shareBtn, color: sharedId === lesson._id ? '#059669' : C.faint }}
-                          onClick={e => shareLesson(lesson, e)}
-                          title="שתף שיעור"
-                        >
-                          {sharedId === lesson._id ? (
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                              <polyline points="20 6 9 17 4 12"/>
-                            </svg>
-                          ) : (
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/>
-                              <polyline points="16 6 12 2 8 6"/>
-                              <line x1="12" y1="2" x2="12" y2="15"/>
-                            </svg>
-                          )}
-                        </button>
-                        {hasVideo ? (
-                          <div style={s.playBtn}>▶</div>
-                        ) : (
-                          <svg width="14" height="14" viewBox="0 0 16 16" fill="none"
-                            style={{color:C.border, flexShrink:0}}>
-                            <path d="M6 12l4-4-4-4" stroke="currentColor" strokeWidth="2"
-                              strokeLinecap="round" strokeLinejoin="round"/>
-                          </svg>
-                        )}
                       </div>
                     );
                   })}
@@ -808,6 +814,39 @@ const s = {
     display:'flex', alignItems:'center', gap:4,
   },
 
+  // ── Lesson thumbnail grid ──
+  thumbCard: {
+    borderRadius: 10, overflow: 'hidden', background: C.white,
+    boxShadow: '0 2px 8px rgba(0,0,0,0.08)', transition: 'transform 0.15s, box-shadow 0.15s',
+    display: 'flex', flexDirection: 'column',
+  },
+  thumbWrap: {
+    position: 'relative', width: '100%', aspectRatio: '16/9',
+    background: C.navy, overflow: 'hidden', flexShrink: 0,
+  },
+  thumbImg: {
+    width: '100%', height: '100%', objectFit: 'cover', display: 'block',
+  },
+  thumbPlaceholder: {
+    width: '100%', height: '100%', display: 'flex', alignItems: 'center',
+    justifyContent: 'center', fontSize: 28, color: 'rgba(255,255,255,0.4)',
+    background: `linear-gradient(135deg, ${C.navy}, ${C.navyDeep})`,
+  },
+  thumbPlay: {
+    position: 'absolute', inset: 0, display: 'flex', alignItems: 'center',
+    justifyContent: 'center', background: 'rgba(0,0,0,0.25)',
+    opacity: 0, transition: 'opacity 0.15s',
+  },
+  thumbInfo: {
+    padding: '10px 12px 12px', display: 'flex', flexDirection: 'column', gap: 2, flex: 1,
+  },
+  thumbTitle: {
+    fontWeight: 700, color: C.navy, lineHeight: 1.35,
+  },
+  thumbSub: {
+    fontSize: 12, color: C.muted, margin: '2px 0 0', lineHeight: 1.4,
+  },
+
   // ── Book grid ──
   bookCard: {
     display:'flex', flexDirection:'column', borderRadius:12, overflow:'hidden',
@@ -1048,6 +1087,15 @@ const css = `
   .book-card:hover {
     transform: translateY(-4px) !important;
     box-shadow: 0 12px 32px rgba(0,0,0,0.18) !important;
+  }
+
+  .lesson-thumb-card:hover {
+    transform: translateY(-4px) !important;
+    box-shadow: 0 12px 28px rgba(0,0,0,0.16) !important;
+  }
+
+  .lesson-thumb-card:hover .thumb-play-overlay {
+    opacity: 1 !important;
   }
 
   .lesson-row:hover {
