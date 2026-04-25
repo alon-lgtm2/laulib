@@ -380,29 +380,46 @@ export default function App({ data }) {
                   )}
                   {visibleLessons.map(lesson => {
                     const thumb = ytThumb(lesson.videoUrl);
-                    const hasVideo = !!lesson.videoUrl;
+                    const isYoutube = !!thumb;
+                    const isPdf = !isYoutube && lesson.externalUrl && /\.pdf(\?|$)/i.test(lesson.externalUrl);
+                    const isWebArticle = !isYoutube && lesson.externalUrl && !isPdf;
+                    const isArticle = isPdf || isWebArticle;
+
+                    const handleClick = () => {
+                      if (isYoutube) setSelectedLesson(lesson);
+                      else if (isPdf) setSelectedLesson(lesson);
+                      else if (isWebArticle) window.open(lesson.externalUrl, '_blank', 'noopener,noreferrer');
+                    };
+
                     return (
                       <div
                         key={lesson._id}
                         className="lesson-thumb-card"
-                        style={{ ...s.thumbCard, cursor: hasVideo ? 'pointer' : 'default' }}
-                        onClick={() => hasVideo && setSelectedLesson(lesson)}
+                        style={{ ...s.thumbCard, cursor: (isYoutube || isArticle) ? 'pointer' : 'default' }}
+                        onClick={handleClick}
                       >
-                        {/* Thumbnail */}
+                        {/* Thumbnail / Article header */}
                         <div style={s.thumbWrap}>
-                          {thumb ? (
-                            <img src={thumb} alt={lesson.title} style={s.thumbImg} />
+                          {isYoutube ? (
+                            <>
+                              <img src={thumb} alt={lesson.title} style={s.thumbImg} />
+                              <div className="thumb-play-overlay" style={s.thumbPlay}>
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
+                                  <path d="M8 5v14l11-7z"/>
+                                </svg>
+                              </div>
+                            </>
+                          ) : isArticle ? (
+                            <div style={s.articleThumbHeader}>
+                              <div style={s.articleDocLines}>
+                                {[1, 0.65, 0.85, 0.5, 0.75].map((w, i) => (
+                                  <div key={i} style={{ height: 3, borderRadius: 2, width: `${w * 100}%`, background: 'rgba(255,255,255,0.25)' }} />
+                                ))}
+                              </div>
+                              <span style={s.articleThumbBadge}>{isPdf ? '📄 PDF' : '✍ מאמר'}</span>
+                            </div>
                           ) : (
-                            <div style={s.thumbPlaceholder}>
-                              {hasVideo ? '▶' : '♫'}
-                            </div>
-                          )}
-                          {hasVideo && (
-                            <div className="thumb-play-overlay" style={s.thumbPlay}>
-                              <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
-                                <path d="M8 5v14l11-7z"/>
-                              </svg>
-                            </div>
+                            <div style={s.thumbPlaceholder}>♫</div>
                           )}
                         </div>
                         {/* Info */}
@@ -475,7 +492,7 @@ export default function App({ data }) {
 
       {/* ── Video modal ── */}
       {selectedLesson && (() => {
-        const detected = detectMedia(selectedLesson.videoUrl);
+        const detected = detectMedia(selectedLesson.videoUrl) || detectMedia(selectedLesson.externalUrl);
         return (
           <div
             style={{
@@ -831,6 +848,20 @@ const s = {
     width: '100%', height: '100%', display: 'flex', alignItems: 'center',
     justifyContent: 'center', fontSize: 28, color: 'rgba(255,255,255,0.4)',
     background: `linear-gradient(135deg, ${C.navy}, ${C.navyDeep})`,
+  },
+  articleThumbHeader: {
+    width: '100%', height: '100%', display: 'flex', flexDirection: 'column',
+    alignItems: 'flex-start', justifyContent: 'center', gap: 8, padding: '16px 20px',
+    background: `linear-gradient(135deg, ${C.gold}, #8B6020)`,
+    position: 'relative',
+  },
+  articleDocLines: {
+    display: 'flex', flexDirection: 'column', gap: 6, width: '100%',
+  },
+  articleThumbBadge: {
+    position: 'absolute', bottom: 10, right: 10,
+    fontSize: 11, fontWeight: 700, color: C.white,
+    background: 'rgba(0,0,0,0.3)', padding: '3px 8px', borderRadius: 20,
   },
   thumbPlay: {
     position: 'absolute', inset: 0, display: 'flex', alignItems: 'center',
