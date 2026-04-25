@@ -123,7 +123,12 @@ export default function App({ data }) {
     return lessons.filter(l => sids.includes(l.series)).length;
   }
 
-  function goTopic(tid) { setTopicId(tid); setSeriesId(null); setQuery(''); }
+  function goTopic(tid) {
+    const topicSeries = series.filter(s => s.topic === tid);
+    setTopicId(tid);
+    setSeriesId(topicSeries.length === 1 ? topicSeries[0]._id : null);
+    setQuery('');
+  }
 
   function shareLesson(lesson, e) {
     e.stopPropagation();
