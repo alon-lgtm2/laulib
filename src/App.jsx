@@ -135,7 +135,9 @@ export default function App({ data }) {
 
   function lessonCount(tid) {
     const sids = series.filter(s => s.topic === tid).map(s => s._id);
-    return lessons.filter(l => sids.includes(l.series)).length;
+    return lessons.filter(l =>
+      sids.includes(l.series) || (l.additionalSeries || []).some(sid => sids.includes(sid))
+    ).length;
   }
 
   function goTopic(tid) {
@@ -457,7 +459,7 @@ export default function App({ data }) {
           }}>
             {visibleSeries.length === 0 && <Empty text="אין סדרות לנושא זה" dark />}
             {visibleSeries.map(ser => {
-              const count = lessons.filter(l => l.series === ser._id).length;
+              const count = lessons.filter(l => l.series === ser._id || (l.additionalSeries || []).includes(ser._id)).length;
               return (
                 <div
                   key={ser._id}
