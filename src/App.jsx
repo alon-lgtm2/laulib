@@ -93,7 +93,6 @@ export default function App({ data }) {
   const [topicId,        setTopicId]        = useState(null);
   const [seriesId,       setSeriesId]       = useState(null);
   const [query,          setQuery]          = useState('');
-  const [filter,         setFilter]         = useState('all');
   const [selectedLesson, setSelectedLesson] = useState(null);
   const [sharedId,       setSharedId]       = useState(null); // id of lesson just shared
   const [isMobile,       setIsMobile]       = useState(
@@ -124,7 +123,7 @@ export default function App({ data }) {
     return lessons.filter(l => sids.includes(l.series)).length;
   }
 
-  function goTopic(tid) { setTopicId(tid); setSeriesId(null); setQuery(''); setFilter('all'); }
+  function goTopic(tid) { setTopicId(tid); setSeriesId(null); setQuery(''); }
 
   function shareLesson(lesson, e) {
     e.stopPropagation();
@@ -163,8 +162,7 @@ export default function App({ data }) {
   const currentSeries = series.find(s => s._id === seriesId);
 
   const visibleSeries = series
-    .filter(s => s.topic === topicId)
-    .filter(s => filter === 'all' || s.mediaType === filter);
+    .filter(s => s.topic === topicId);
 
   const visibleLessons = seriesId
     ? lessons.filter(l => l.series === seriesId)
@@ -272,32 +270,6 @@ export default function App({ data }) {
             )}
           </div>
 
-          {!inLessons && (
-            <div
-              className="filter-strip"
-              style={{
-                ...s.filters,
-                flexWrap:  isMobile ? 'nowrap' : 'wrap',
-                overflowX: isMobile ? 'auto'   : 'visible',
-              }}
-            >
-              {[
-                { key:'all',   label:'הכל'      },
-                { key:'video', label:'▶ וידאו'   },
-                { key:'audio', label:'♫ שמע'     },
-                { key:'book',  label:'📖 ספר'    },
-              ].map(f => (
-                <button
-                  key={f.key}
-                  className={`filter-btn${filter===f.key?' active':''}`}
-                  style={{ ...s.filterBtn, ...(filter===f.key ? s.filterBtnActive : {}) }}
-                  onClick={() => setFilter(f.key)}
-                >
-                  {f.label}
-                </button>
-              ))}
-            </div>
-          )}
         </header>
 
         {/* Content */}
@@ -329,15 +301,6 @@ export default function App({ data }) {
                   חזרה
                 </button>
                 <div style={s.lessonsMeta}>
-                  {currentSeries && (
-                    <span style={{
-                      ...s.miniPill,
-                      color: media(currentSeries.mediaType).color,
-                      backgroundColor: media(currentSeries.mediaType).bg,
-                    }}>
-                      {media(currentSeries.mediaType).icon} {media(currentSeries.mediaType).label}
-                    </span>
-                  )}
                   <h2 style={{ ...s.lessonsTitle, fontSize: isMobile ? 17 : 21 }}>
                     {query ? `תוצאות: "${query}"` : currentSeries?.title || ''}
                   </h2>
@@ -356,7 +319,6 @@ export default function App({ data }) {
                   <Empty text="לא נמצאו שיעורים" dark={false} />
                 )}
                 {visibleLessons.map((lesson, i) => {
-                  const m = media(lesson.mediaType);
                   const hasVideo = !!lesson.videoUrl;
                   return (
                     <div
@@ -372,11 +334,6 @@ export default function App({ data }) {
                           <p style={s.lessonSubtitle}>{lesson.subtitle}</p>
                         )}
                         <div style={s.chips}>
-                          {lesson.mediaType && (
-                            <span style={{...s.chip, color:m.color, backgroundColor:m.bg}}>
-                              {m.icon} {m.label}
-                            </span>
-                          )}
                           {lesson.duration && (
                             <span style={s.chipGray}>⏱ {formatDuration(lesson.duration)}</span>
                           )}
@@ -434,7 +391,6 @@ export default function App({ data }) {
             {visibleSeries.length === 0 && <Empty text="אין סדרות לנושא זה" dark />}
             {visibleSeries.map(ser => {
               const count = lessons.filter(l => l.series === ser._id).length;
-              const m = media(ser.mediaType);
               return (
                 <div
                   key={ser._id}
@@ -442,12 +398,9 @@ export default function App({ data }) {
                   style={s.seriesCard}
                   onClick={() => setSeriesId(ser._id)}
                 >
-                  <div style={{...s.cardStripe, backgroundColor: m.color}} />
+                  <div style={{...s.cardStripe, backgroundColor: C.gold}} />
                   <div style={{ ...s.cardBody, padding: isMobile ? '16px 16px 14px' : '20px 22px 18px' }}>
                     <div style={s.cardTop}>
-                      <span style={{...s.mediaPill, color:m.color, backgroundColor:m.bg}}>
-                        {m.icon}&nbsp;{m.label}
-                      </span>
                       <span style={s.countLabel}>{count} שיעורים</span>
                     </div>
                     <h3 style={{ ...s.seriesTitle, fontSize: isMobile ? 15 : 17 }}>{ser.title}</h3>
@@ -473,7 +426,6 @@ export default function App({ data }) {
       {/* ── Video modal ── */}
       {selectedLesson && (() => {
         const detected = detectMedia(selectedLesson.videoUrl);
-        const m = media(selectedLesson.mediaType);
         return (
           <div
             style={{
@@ -497,9 +449,6 @@ export default function App({ data }) {
               {/* Header */}
               <div style={s.modalHeader}>
                 <div style={s.modalMeta}>
-                  <span style={{ ...s.miniPill, color:m.color, backgroundColor:m.bg }}>
-                    {m.icon} {m.label}
-                  </span>
                   {selectedLesson.duration && (
                     <span style={s.modalDuration}>⏱ {formatDuration(selectedLesson.duration)}</span>
                   )}
