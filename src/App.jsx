@@ -520,27 +520,7 @@ export default function App({ data }) {
                     <span style={s.modalDuration}>⏱ {formatDuration(selectedLesson.duration)}</span>
                   )}
                 </div>
-                <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-                  <button
-                    className="share-btn"
-                    style={{ ...s.closeBtn, color: sharedId === selectedLesson._id ? '#059669' : C.muted }}
-                    onClick={e => shareLesson(selectedLesson, e)}
-                    title="שתף שיעור"
-                  >
-                    {sharedId === selectedLesson._id ? (
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="20 6 9 17 4 12"/>
-                      </svg>
-                    ) : (
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/>
-                        <polyline points="16 6 12 2 8 6"/>
-                        <line x1="12" y1="2" x2="12" y2="15"/>
-                      </svg>
-                    )}
-                  </button>
-                  <button style={s.closeBtn} onClick={() => setSelectedLesson(null)}>✕</button>
-                </div>
+                <button style={s.closeBtn} onClick={() => setSelectedLesson(null)}>✕</button>
               </div>
 
               <h2 style={{ ...s.modalTitle, fontSize: isMobile ? 18 : 21 }}>{selectedLesson.title}</h2>
