@@ -158,6 +158,8 @@ export default function App({ data }) {
     }
   }
 
+  if (!data) return null;
+
   const inLessons     = !!seriesId || !!query;
   const currentSeries = series.find(s => s._id === seriesId);
 

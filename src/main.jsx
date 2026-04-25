@@ -36,7 +36,7 @@ const DEV_DATA = {
 // ─── Root component — bridges postMessage into React state ────────────────────
 
 function Root() {
-  const [data, setData] = useState(DEV_DATA);
+  const [data, setData] = useState(null);
 
   useEffect(() => {
     const handler = (event) => {
