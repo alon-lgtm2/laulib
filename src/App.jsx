@@ -187,7 +187,7 @@ export default function App({ data }) {
     .filter(s => s.topic === topicId);
 
   const visibleLessons = seriesId
-    ? lessons.filter(l => l.series === seriesId)
+    ? lessons.filter(l => l.series === seriesId || (l.multireference || []).includes(seriesId))
     : lessons.filter(l =>
         l.title?.toLowerCase().includes(query.toLowerCase()) ||
         (l.tags||[]).some(t => t.toLowerCase().includes(query.toLowerCase())) ||
