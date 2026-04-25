@@ -579,7 +579,7 @@ export default function App({ data }) {
               {detected?.type === 'pdf' && (
                 <div style={s.pdfWrap}>
                   <iframe
-                    src={detected.src}
+                    src={`https://docs.google.com/viewer?url=${encodeURIComponent(detected.src)}&embedded=true`}
                     style={{ ...s.pdfFrame, height: isMobile ? 280 : 500 }}
                     title="PDF viewer"
                   />
