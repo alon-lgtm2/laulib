@@ -317,70 +317,107 @@ export default function App({ data }) {
                 </div>
               </div>
 
-              {/* Lesson rows */}
-              <div style={{
-                ...s.lessonList,
-                padding: isMobile ? '6px 10px 16px' : '8px 22px 22px',
-              }}>
-                {visibleLessons.length === 0 && (
-                  <Empty text="לא נמצאו שיעורים" dark={false} />
-                )}
-                {visibleLessons.map((lesson, i) => {
-                  const hasVideo = !!lesson.videoUrl;
-                  return (
-                    <div
+              {/* Lesson rows or book grid */}
+              {visibleLessons.some(l => l.coverImage) ? (
+
+                /* ── Book grid ── */
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(auto-fill, minmax(180px, 1fr))',
+                  gap: isMobile ? 14 : 20,
+                  padding: isMobile ? '14px 10px 20px' : '20px 22px 28px',
+                }}>
+                  {visibleLessons.map(lesson => (
+                    <a
                       key={lesson._id}
-                      className="lesson-row"
-                      style={{ ...s.lessonRow, cursor: hasVideo ? 'pointer' : 'default', padding: isMobile ? '11px 8px' : '13px 12px' }}
-                      onClick={() => hasVideo && setSelectedLesson(lesson)}
+                      href={lesson.externalUrl || '#'}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="book-card"
+                      style={s.bookCard}
                     >
-                      <div style={s.lessonNum}>{i + 1}</div>
-                      <div style={s.lessonBody}>
-                        <span style={{ ...s.lessonTitle, fontSize: isMobile ? 14 : 15 }}>{lesson.title}</span>
-                        {lesson.subtitle && (
-                          <p style={s.lessonSubtitle}>{lesson.subtitle}</p>
-                        )}
-                        <div style={s.chips}>
-                          {lesson.duration && (
-                            <span style={s.chipGray}>⏱ {formatDuration(lesson.duration)}</span>
-                          )}
-                          {(lesson.tags||[]).slice(0,2).map(tag => (
-                            <span key={tag} style={s.chipTag}>{tag}</span>
-                          ))}
-                        </div>
-                      </div>
-                      {/* Share button */}
-                      <button
-                        className="share-btn"
-                        style={{ ...s.shareBtn, color: sharedId === lesson._id ? '#059669' : C.faint }}
-                        onClick={e => shareLesson(lesson, e)}
-                        title="שתף שיעור"
-                      >
-                        {sharedId === lesson._id ? (
-                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="20 6 9 17 4 12"/>
-                          </svg>
-                        ) : (
-                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/>
-                            <polyline points="16 6 12 2 8 6"/>
-                            <line x1="12" y1="2" x2="12" y2="15"/>
-                          </svg>
-                        )}
-                      </button>
-                      {hasVideo ? (
-                        <div style={s.playBtn}>▶</div>
-                      ) : (
-                        <svg width="14" height="14" viewBox="0 0 16 16" fill="none"
-                          style={{color:C.border, flexShrink:0}}>
-                          <path d="M6 12l4-4-4-4" stroke="currentColor" strokeWidth="2"
-                            strokeLinecap="round" strokeLinejoin="round"/>
-                        </svg>
+                      {lesson.coverImage && (
+                        <img
+                          src={lesson.coverImage}
+                          alt={lesson.title}
+                          style={s.bookCover}
+                        />
                       )}
-                    </div>
-                  );
-                })}
-              </div>
+                      <div style={s.bookInfo}>
+                        <span style={s.bookTitle}>{lesson.title}</span>
+                        {lesson.subtitle && <p style={s.bookDesc}>{lesson.subtitle}</p>}
+                      </div>
+                    </a>
+                  ))}
+                </div>
+
+              ) : (
+
+                /* ── Standard lesson list ── */
+                <div style={{
+                  ...s.lessonList,
+                  padding: isMobile ? '6px 10px 16px' : '8px 22px 22px',
+                }}>
+                  {visibleLessons.length === 0 && (
+                    <Empty text="לא נמצאו שיעורים" dark={false} />
+                  )}
+                  {visibleLessons.map((lesson, i) => {
+                    const hasVideo = !!lesson.videoUrl;
+                    return (
+                      <div
+                        key={lesson._id}
+                        className="lesson-row"
+                        style={{ ...s.lessonRow, cursor: hasVideo ? 'pointer' : 'default', padding: isMobile ? '11px 8px' : '13px 12px' }}
+                        onClick={() => hasVideo && setSelectedLesson(lesson)}
+                      >
+                        <div style={s.lessonNum}>{i + 1}</div>
+                        <div style={s.lessonBody}>
+                          <span style={{ ...s.lessonTitle, fontSize: isMobile ? 14 : 15 }}>{lesson.title}</span>
+                          {lesson.subtitle && (
+                            <p style={s.lessonSubtitle}>{lesson.subtitle}</p>
+                          )}
+                          <div style={s.chips}>
+                            {lesson.duration && (
+                              <span style={s.chipGray}>⏱ {formatDuration(lesson.duration)}</span>
+                            )}
+                            {(lesson.tags||[]).slice(0,2).map(tag => (
+                              <span key={tag} style={s.chipTag}>{tag}</span>
+                            ))}
+                          </div>
+                        </div>
+                        <button
+                          className="share-btn"
+                          style={{ ...s.shareBtn, color: sharedId === lesson._id ? '#059669' : C.faint }}
+                          onClick={e => shareLesson(lesson, e)}
+                          title="שתף שיעור"
+                        >
+                          {sharedId === lesson._id ? (
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="20 6 9 17 4 12"/>
+                            </svg>
+                          ) : (
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/>
+                              <polyline points="16 6 12 2 8 6"/>
+                              <line x1="12" y1="2" x2="12" y2="15"/>
+                            </svg>
+                          )}
+                        </button>
+                        {hasVideo ? (
+                          <div style={s.playBtn}>▶</div>
+                        ) : (
+                          <svg width="14" height="14" viewBox="0 0 16 16" fill="none"
+                            style={{color:C.border, flexShrink:0}}>
+                            <path d="M6 12l4-4-4-4" stroke="currentColor" strokeWidth="2"
+                              strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+              )}
             </div>
           </div>
 
@@ -771,6 +808,26 @@ const s = {
     display:'flex', alignItems:'center', gap:4,
   },
 
+  // ── Book grid ──
+  bookCard: {
+    display:'flex', flexDirection:'column', borderRadius:12, overflow:'hidden',
+    background:C.white, textDecoration:'none', color:'inherit',
+    boxShadow:'0 2px 8px rgba(0,0,0,0.08)', transition:'transform 0.15s, box-shadow 0.15s',
+    cursor:'pointer',
+  },
+  bookCover: {
+    width:'100%', aspectRatio:'2/3', objectFit:'cover', display:'block',
+  },
+  bookInfo: {
+    padding:'10px 12px 14px', display:'flex', flexDirection:'column', gap:4,
+  },
+  bookTitle: {
+    fontSize:14, fontWeight:700, color:C.navy, lineHeight:1.3,
+  },
+  bookDesc: {
+    fontSize:12, color:C.muted, margin:0, lineHeight:1.5,
+  },
+
   // ── Lessons ──
   lessonsWrap: {
     flex:1, overflow:'hidden',
@@ -986,6 +1043,11 @@ const css = `
   .series-card:hover {
     transform: translateY(-6px) !important;
     box-shadow: 0 20px 48px rgba(0,0,0,0.28) !important;
+  }
+
+  .book-card:hover {
+    transform: translateY(-4px) !important;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.18) !important;
   }
 
   .lesson-row:hover {
