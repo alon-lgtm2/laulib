@@ -410,7 +410,7 @@ export default function App({ data }) {
                         פתח סדרה
                         <svg width="13" height="13" viewBox="0 0 16 16" fill="none"
                           style={{display:'inline-block', verticalAlign:'middle', marginRight:4}}>
-                          <path d="M6 12l4-4-4-4" stroke="currentColor" strokeWidth="2.2"
+                          <path d="M10 12l-4-4 4-4" stroke="currentColor" strokeWidth="2.2"
                             strokeLinecap="round" strokeLinejoin="round"/>
                         </svg>
                       </span>
