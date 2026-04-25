@@ -116,7 +116,7 @@ export default function App({ data }) {
   }, []);
 
   useEffect(() => {
-    if (topics.length && !topicId) setTopicId(topics[0]._id);
+    if (topics.length && !topics.find(t => t._id === topicId)) setTopicId(topics[0]._id);
   }, [topics]);
 
   function lessonCount(tid) {
