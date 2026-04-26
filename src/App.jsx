@@ -1084,7 +1084,9 @@ const css = `
 
   /* Reset browser default button background */
   button { -webkit-appearance: none; appearance: none; }
-  .topic-btn { background-color: transparent !important; }
+  .topic-btn { background-color: transparent !important; outline: none !important; }
+  .topic-btn:focus { outline: none !important; }
+  .mobile-topic-btn:focus { outline: none !important; }
   .topic-btn.active { background-color: ${C.gold} !important; }
 
   .topic-btn:hover:not(.active) {
