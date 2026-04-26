@@ -233,9 +233,23 @@ export default function App({ data }) {
       {/* ── Desktop sidebar ── */}
       {!isMobile && (
         <aside style={s.sidebar}>
-          <div style={s.brand}>
-            <div style={s.brandDot} />
-            <span style={s.brandText}>ספריית התוכן</span>
+          {/* Search in sidebar */}
+          <div style={s.sidebarSearch}>
+            <svg width="14" height="14" viewBox="0 0 20 20" fill="none" style={{flexShrink:0}}>
+              <circle cx="9" cy="9" r="6" stroke="rgba(255,255,255,0.45)" strokeWidth="2"/>
+              <path d="M14 14l3 3" stroke="rgba(255,255,255,0.45)" strokeWidth="2" strokeLinecap="round"/>
+            </svg>
+            <input
+              className="bavua-search"
+              style={{ ...s.searchInput, fontSize: 13 }}
+              type="text"
+              placeholder="חיפוש שיעורים..."
+              value={query}
+              onChange={e => { setQuery(e.target.value); setSeriesId(null); }}
+            />
+            {query && (
+              <button className="clear-btn" style={s.clearBtn} onClick={() => setQuery('')}>✕</button>
+            )}
           </div>
 
           <div style={s.sidebarSection}>נושאים</div>
@@ -268,32 +282,38 @@ export default function App({ data }) {
       {/* ── Main ──────────────────────────────────────────────────────── */}
       <main style={s.main}>
 
-        {/* Toolbar */}
-        <header style={{
-          ...s.toolbar,
-          flexDirection: isMobile ? 'column' : 'row',
-          alignItems:    isMobile ? 'stretch' : 'center',
-          padding:       isMobile ? '9px 12px' : '14px 22px',
-          gap:           isMobile ? 10 : 12,
-        }}>
-          <div style={{ ...s.searchWrap, maxWidth: isMobile ? 'none' : 400 }}>
-            <svg width="15" height="15" viewBox="0 0 20 20" fill="none" style={{flexShrink:0}}>
-              <circle cx="9" cy="9" r="6" stroke="rgba(255,255,255,0.5)" strokeWidth="2"/>
-              <path d="M14 14l3 3" stroke="rgba(255,255,255,0.5)" strokeWidth="2" strokeLinecap="round"/>
-            </svg>
-            <input
-              className="bavua-search"
-              style={s.searchInput}
-              type="text"
-              placeholder="חיפוש שיעורים..."
-              value={query}
-              onChange={e => { setQuery(e.target.value); setSeriesId(null); }}
-            />
-            {query && (
-              <button className="clear-btn" style={s.clearBtn} onClick={() => setQuery('')}>✕</button>
-            )}
-          </div>
-
+        {/* Hero header */}
+        <header style={{ ...s.hero, padding: isMobile ? '28px 20px 22px' : '36px 36px 28px' }}>
+          <h1 style={{ ...s.heroTitle, fontSize: isMobile ? 22 : 28 }}>ספריית התוכן של הרב בני</h1>
+          <p style={{ ...s.heroSub, fontSize: isMobile ? 14 : 16 }}>
+            שיעורים, מאמרים<br/>והרצאות
+          </p>
+          <p style={{ ...s.heroDesc, fontSize: isMobile ? 12 : 13 }}>
+            חיפוש לפי נושאים, סוגי תוכן וסדרות הלימוד
+          </p>
+          <p style={{ ...s.heroTagline, fontSize: isMobile ? 11 : 12 }}>
+            פתוח וחינמי · לכל מי שמבקש ללמוד
+          </p>
+          {/* Mobile search */}
+          {isMobile && (
+            <div style={{ ...s.searchWrap, marginTop: 14 }}>
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" style={{flexShrink:0}}>
+                <circle cx="9" cy="9" r="6" stroke="rgba(255,255,255,0.5)" strokeWidth="2"/>
+                <path d="M14 14l3 3" stroke="rgba(255,255,255,0.5)" strokeWidth="2" strokeLinecap="round"/>
+              </svg>
+              <input
+                className="bavua-search"
+                style={s.searchInput}
+                type="text"
+                placeholder="חיפוש שיעורים..."
+                value={query}
+                onChange={e => { setQuery(e.target.value); setSeriesId(null); }}
+              />
+              {query && (
+                <button className="clear-btn" style={s.clearBtn} onClick={() => setQuery('')}>✕</button>
+              )}
+            </div>
+          )}
         </header>
 
         {/* Content */}
@@ -731,15 +751,33 @@ const s = {
     overflow:'hidden', minWidth:0,
   },
 
-  // ── Toolbar ──
-  toolbar: {
-    display:'flex', alignItems:'center', gap:12,
-    padding:'14px 22px',
-    backgroundColor:'rgba(255,255,255,0.12)',
-    backdropFilter:'blur(12px)',
-    WebkitBackdropFilter:'blur(12px)',
-    borderBottom:'1px solid rgba(255,255,255,0.12)',
-    flexShrink:0, flexWrap:'wrap',
+  // ── Hero header ──
+  hero: {
+    backgroundColor: SITE_BLUE,
+    flexShrink: 0,
+    display: 'flex', flexDirection: 'column', gap: 6,
+    borderBottom: '1px solid rgba(255,255,255,0.12)',
+  },
+  heroTitle: {
+    color: C.white, fontWeight: 800, margin: 0, lineHeight: 1.2,
+  },
+  heroSub: {
+    color: 'rgba(255,255,255,0.9)', fontWeight: 600, margin: 0, lineHeight: 1.5,
+  },
+  heroDesc: {
+    color: 'rgba(255,255,255,0.6)', margin: 0, lineHeight: 1.5,
+  },
+  heroTagline: {
+    color: C.gold, fontWeight: 600, margin: 0, letterSpacing: '0.5px',
+  },
+
+  // ── Sidebar search ──
+  sidebarSearch: {
+    display: 'flex', alignItems: 'center', gap: 8,
+    padding: '14px 16px',
+    backgroundColor: 'rgba(255,255,255,0.07)',
+    borderBottom: '1px solid rgba(255,255,255,0.07)',
+    flexShrink: 0,
   },
   searchWrap: {
     display:'flex', alignItems:'center', gap:8,
