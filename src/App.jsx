@@ -360,8 +360,8 @@ export default function App({ data }) {
                 /* ── Book grid ── */
                 <div style={{
                   display: 'grid',
-                  gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(auto-fill, minmax(180px, 1fr))',
-                  gap: isMobile ? 14 : 20,
+                  gridTemplateColumns: isMobile ? 'repeat(3, 1fr)' : 'repeat(auto-fill, minmax(108px, 1fr))',
+                  gap: isMobile ? 10 : 14,
                   padding: isMobile ? '14px 10px 20px' : '20px 22px 28px',
                 }}>
                   {visibleLessons.map(lesson => (
