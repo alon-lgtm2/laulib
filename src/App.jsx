@@ -233,27 +233,6 @@ export default function App({ data }) {
       {/* ── Desktop sidebar ── */}
       {!isMobile && (
         <aside style={s.sidebar}>
-          {/* Search in sidebar */}
-          <div style={s.sidebarSearch}>
-            <svg width="14" height="14" viewBox="0 0 20 20" fill="none" style={{flexShrink:0}}>
-              <circle cx="9" cy="9" r="6" stroke="rgba(255,255,255,0.45)" strokeWidth="2"/>
-              <path d="M14 14l3 3" stroke="rgba(255,255,255,0.45)" strokeWidth="2" strokeLinecap="round"/>
-            </svg>
-            <input
-              className="bavua-search"
-              style={{ ...s.searchInput, fontSize: 13 }}
-              type="text"
-              placeholder="חיפוש שיעורים..."
-              value={query}
-              onChange={e => { setQuery(e.target.value); setSeriesId(null); }}
-            />
-            {query && (
-              <button className="clear-btn" style={s.clearBtn} onClick={() => setQuery('')}>✕</button>
-            )}
-          </div>
-
-          <div style={s.sidebarSection}>נושאים</div>
-
           <nav style={s.topicNav}>
             {topics.map(t => {
               const active = t._id === topicId;
@@ -286,7 +265,7 @@ export default function App({ data }) {
         <header style={{ ...s.hero, padding: isMobile ? '28px 20px 22px' : '36px 36px 28px' }}>
           <h1 style={{ ...s.heroTitle, fontSize: isMobile ? 22 : 28 }}>ספריית התוכן של הרב בני</h1>
           <p style={{ ...s.heroSub, fontSize: isMobile ? 14 : 16 }}>
-            שיעורים, מאמרים<br/>והרצאות
+            שיעורים, מאמרים והרצאות
           </p>
           <p style={{ ...s.heroDesc, fontSize: isMobile ? 12 : 13 }}>
             חיפוש לפי נושאים, סוגי תוכן וסדרות הלימוד
@@ -305,7 +284,7 @@ export default function App({ data }) {
                 className="bavua-search"
                 style={s.searchInput}
                 type="text"
-                placeholder="חיפוש שיעורים..."
+                placeholder="חפש בספריה..."
                 value={query}
                 onChange={e => { setQuery(e.target.value); setSeriesId(null); }}
               />
@@ -315,6 +294,27 @@ export default function App({ data }) {
             </div>
           )}
         </header>
+
+        {/* Search bar — desktop only, left side */}
+        {!isMobile && (
+          <div style={s.mainSearch}>
+            <svg width="15" height="15" viewBox="0 0 20 20" fill="none" style={{flexShrink:0}}>
+              <circle cx="9" cy="9" r="6" stroke="rgba(255,255,255,0.6)" strokeWidth="2"/>
+              <path d="M14 14l3 3" stroke="rgba(255,255,255,0.6)" strokeWidth="2" strokeLinecap="round"/>
+            </svg>
+            <input
+              className="bavua-search"
+              style={{ ...s.searchInput, fontSize: 14 }}
+              type="text"
+              placeholder="חפש בספריה..."
+              value={query}
+              onChange={e => { setQuery(e.target.value); setSeriesId(null); }}
+            />
+            {query && (
+              <button className="clear-btn" style={s.clearBtn} onClick={() => setQuery('')}>✕</button>
+            )}
+          </div>
+        )}
 
         {/* Content */}
         {inLessons ? (
@@ -771,19 +771,19 @@ const s = {
     color: C.gold, fontWeight: 600, margin: 0, letterSpacing: '0.5px',
   },
 
-  // ── Sidebar search ──
-  sidebarSearch: {
+  // ── Main search bar ──
+  mainSearch: {
     display: 'flex', alignItems: 'center', gap: 8,
-    padding: '14px 16px',
-    backgroundColor: 'rgba(255,255,255,0.07)',
-    borderBottom: '1px solid rgba(255,255,255,0.07)',
+    padding: '12px 22px',
+    backgroundColor: 'transparent',
+    borderBottom: '1px solid rgba(255,255,255,0.15)',
     flexShrink: 0,
   },
   searchWrap: {
     display:'flex', alignItems:'center', gap:8,
     flex:1, maxWidth:400,
-    backgroundColor:'rgba(255,255,255,0.15)',
-    border:'1.5px solid rgba(255,255,255,0.25)',
+    backgroundColor:'transparent',
+    border:'1.5px solid rgba(255,255,255,0.55)',
     borderRadius:100, padding:'8px 16px',
     transition:'border-color 0.18s',
   },
