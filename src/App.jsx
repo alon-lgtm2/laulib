@@ -224,11 +224,24 @@ export default function App({ data }) {
   );
 
   return (
-    <div dir="rtl" style={{ ...s.root, flexDirection: isMobile ? 'column' : 'row', minHeight: isMobile ? 0 : 600 }}>
+    <div dir="rtl" style={{ ...s.root, flexDirection: 'column', minHeight: isMobile ? 0 : 600 }}>
       <style>{css}</style>
 
       {/* ── Mobile: brand + topic strip ── */}
       {isMobile && <MobileTopicStrip />}
+
+      {/* ── Hero — full width ── */}
+      {!isMobile && (
+        <header style={{ ...s.hero, padding: '36px 36px 28px' }}>
+          <h1 style={{ ...s.heroTitle, fontSize: 28 }}>ספריית התוכן של הרב בני</h1>
+          <p style={{ ...s.heroSub, fontSize: 16 }}>שיעורים, מאמרים והרצאות</p>
+          <p style={{ ...s.heroDesc, fontSize: 13 }}>חיפוש לפי נושאים, סוגי תוכן וסדרות הלימוד</p>
+          <p style={{ ...s.heroTagline, fontSize: 12 }}>פתוח וחינמי · לכל מי שמבקש ללמוד</p>
+        </header>
+      )}
+
+      {/* ── Body: sidebar + main ── */}
+      <div style={{ display:'flex', flex:1, minHeight:0, flexDirection: isMobile ? 'column' : 'row' }}>
 
       {/* ── Desktop sidebar ── */}
       {!isMobile && (
@@ -261,39 +274,26 @@ export default function App({ data }) {
       {/* ── Main ──────────────────────────────────────────────────────── */}
       <main style={s.main}>
 
-        {/* Hero header */}
-        <header style={{ ...s.hero, padding: isMobile ? '28px 20px 22px' : '36px 36px 28px' }}>
-          <h1 style={{ ...s.heroTitle, fontSize: isMobile ? 22 : 28 }}>ספריית התוכן של הרב בני</h1>
-          <p style={{ ...s.heroSub, fontSize: isMobile ? 14 : 16 }}>
-            שיעורים, מאמרים והרצאות
-          </p>
-          <p style={{ ...s.heroDesc, fontSize: isMobile ? 12 : 13 }}>
-            חיפוש לפי נושאים, סוגי תוכן וסדרות הלימוד
-          </p>
-          <p style={{ ...s.heroTagline, fontSize: isMobile ? 11 : 12 }}>
-            פתוח וחינמי · לכל מי שמבקש ללמוד
-          </p>
-          {/* Mobile search */}
-          {isMobile && (
+        {/* Mobile hero */}
+        {isMobile && (
+          <header style={{ ...s.hero, padding: '28px 20px 22px' }}>
+            <h1 style={{ ...s.heroTitle, fontSize: 22 }}>ספריית התוכן של הרב בני</h1>
+            <p style={{ ...s.heroSub, fontSize: 14 }}>שיעורים, מאמרים והרצאות</p>
+            <p style={{ ...s.heroDesc, fontSize: 12 }}>חיפוש לפי נושאים, סוגי תוכן וסדרות הלימוד</p>
+            <p style={{ ...s.heroTagline, fontSize: 11 }}>פתוח וחינמי · לכל מי שמבקש ללמוד</p>
             <div style={{ ...s.searchWrap, marginTop: 14 }}>
               <svg width="14" height="14" viewBox="0 0 20 20" fill="none" style={{flexShrink:0}}>
                 <circle cx="9" cy="9" r="6" stroke="rgba(255,255,255,0.5)" strokeWidth="2"/>
                 <path d="M14 14l3 3" stroke="rgba(255,255,255,0.5)" strokeWidth="2" strokeLinecap="round"/>
               </svg>
-              <input
-                className="bavua-search"
-                style={s.searchInput}
-                type="text"
-                placeholder="חפש בספריה..."
-                value={query}
+              <input className="bavua-search" style={s.searchInput} type="text"
+                placeholder="חפש בספריה..." value={query}
                 onChange={e => { setQuery(e.target.value); setSeriesId(null); }}
               />
-              {query && (
-                <button className="clear-btn" style={s.clearBtn} onClick={() => setQuery('')}>✕</button>
-              )}
+              {query && <button className="clear-btn" style={s.clearBtn} onClick={() => setQuery('')}>✕</button>}
             </div>
-          )}
-        </header>
+          </header>
+        )}
 
         {/* Search bar — desktop only, left side */}
         {!isMobile && (
@@ -511,6 +511,8 @@ export default function App({ data }) {
           </div>
         )}
       </main>
+
+      </div>{/* end body */}
 
       {/* ── Video modal ── */}
       {selectedLesson && (() => {
