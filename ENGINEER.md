@@ -143,26 +143,34 @@ Rows shown when a series is opened.
 | Field | Type | Notes |
 |-------|------|-------|
 | `title` | Text | Lesson name |
+| `subtitle` | Text | Shown below the title in the card |
+| `description` | Text | Shown in the modal when the lesson is opened |
 | `series` | Reference → Series | Which series this belongs to |
 | `topic` | Reference → Topics | Which topic (for search/filter) |
-| `mediaType` | Text | `video` / `audio` / `book` / `article` |
 | `duration` | Number | In minutes |
 | `tags` | Tags | Up to 2 shown in UI |
-| `videoUrl` | Text | Any media URL (see Media Types below) |
-| `sortOrder` | Number | Order within the series |
+| `videoUrl` | Text | Primary media URL — YouTube, MP3, MP4, PDF, or any link (see below) |
+| `externalUrl` | URL | Secondary link — used for external articles/books (e.g. ybook.co.il) |
 | `isPublished` | Boolean | **Must be `true` to appear in the library** |
+
+> **Note:** `mediaType` and `sortOrder` are not currently in the live CMS schema. The player type is auto-detected from the URL (see below); display order follows CMS insertion order.
 
 ### Media URL auto-detection
 
-The `videoUrl` field accepts any of these — the player is chosen automatically:
+The `videoUrl` field accepts any of these — the player is chosen automatically by `detectMedia()` in `App.jsx`:
 
 | URL format | Player |
 |-----------|--------|
-| `youtube.com/watch?v=...` or `youtu.be/...` | Embedded YouTube |
-| `.mp3` / `.m4a` / `.wav` etc. | HTML5 audio player |
+| `youtube.com/watch?v=...` or `youtu.be/...` | Embedded YouTube iframe |
+| `https://static.wixstatic.com/mp3/...` | HTML5 audio player |
+| `.mp3` / `.m4a` / `.ogg` / `.wav` / `.aac` / `.flac` | HTML5 audio player |
 | `.mp4` / `.webm` / `.mov` etc. | HTML5 video player |
-| `.pdf` or Google Drive PDF | Inline PDF viewer |
-| Any other `https://` URL | External link card (article) |
+| `.pdf` or Google Drive PDF link | Inline PDF viewer |
+| Any other `https://` URL | Opens in new tab (article) |
+
+> **Wix CDN audio URLs** look like `https://static.wixstatic.com/mp3/<hash>.mp3` — both the `/mp3/` path and the `.mp3` extension are detected. The `velo-page-code.js` also converts Wix-internal `wix:audio://v1/...` URIs to HTTPS automatically if that format ever appears.
+
+> **`externalUrl`** is used as a fallback if `videoUrl` is empty. It opens in a new browser tab.
 
 ---
 
@@ -357,12 +365,20 @@ Found in `velo-page-code.js` in the repo. Paste into the Wix Dev Mode page code 
 ```js
 import wixData from 'wix-data';
 
+// Converts Wix-internal audio URIs (wix:audio://v1/...) to playable HTTPS CDN URLs.
+// Plain HTTPS URLs pass through unchanged.
+function resolveAudioUrl(url) {
+  if (!url) return url;
+  const m = url.match(/^wix:audio:\/\/v1\/(.+)/);
+  return m ? `https://static.wixstatic.com/mp3/${m[1]}` : url;
+}
+
 $w.onReady(async function () {
   try {
     const [topicsRes, seriesRes, lessonsRes] = await Promise.all([
       wixData.query('Topics').ascending('sortOrder').find(),
       wixData.query('Series').ascending('sortOrder').find(),
-      wixData.query('Lessons').eq('isPublished', true).ascending('sortOrder').find(),
+      wixData.query('Lessons').eq('isPublished', true).include('multireference').ascending('sortOrder').limit(1000).find(),
     ]);
 
     $w('#library').postMessage({
@@ -370,7 +386,7 @@ $w.onReady(async function () {
       payload: {
         topics:  topicsRes.items,
         series:  seriesRes.items,
-        lessons: lessonsRes.items,
+        lessons: lessonsRes.items.map(l => ({ ...l, videoUrl: resolveAudioUrl(l.videoUrl) })),
       },
     });
 
@@ -382,8 +398,47 @@ $w.onReady(async function () {
 
 ---
 
+## Deploying via Direct Embed (alternative to Netlify)
+
+Instead of the Netlify-hosted iframe approach, the built HTML can be pasted directly into the Wix Embed Code element. Both approaches work.
+
+1. `npm run build` — produces `dist/index.html` (~170 kB, fully self-contained)
+2. In Wix Studio editor, click the Embed Code element (`#library`)
+3. Click **Enter Code** → select all existing code → delete it
+4. Open `dist/index.html`, select all, copy, paste into the editor
+5. Click **Apply**, then **Publish** the Wix site
+
+When using direct embed, the message relay script (see "Embed Code element HTML" above) is not needed — the React app receives the Velo `postMessage` directly.
+
+---
+
+## Troubleshooting
+
+### Audio card shows music note but doesn't play
+
+1. **Check `videoUrl` in the CMS** — open the Lessons collection, find the item, confirm the `videoUrl` field has a valid HTTPS URL. Wix CDN audio URLs look like `https://static.wixstatic.com/mp3/<hash>.mp3`.
+2. **Check `isPublished`** — the lesson must have `isPublished: true` or it is silently excluded from the Velo query and will not appear at all.
+3. **Check the URL format** — `detectMedia()` in `App.jsx` identifies the player from the URL. If the URL doesn't end in a known extension and isn't a Wix CDN audio path, it won't render an audio player. Supported: `.mp3 .m4a .ogg .wav .aac .flac` and `wixstatic.com/mp3/` paths.
+
+### Lesson card is not clickable (cursor stays as arrow)
+
+The click handler only activates if `lesson.videoUrl` or `lesson.externalUrl` is non-empty. An arrow cursor means both fields are empty for that lesson in the CMS.
+
+### Adding debug logging to the Velo code
+
+Add this inside `$w.onReady` after the query, log specific lessons, then remove before shipping:
+
+```js
+const target = lessonsRes.items.find(l => l.title?.includes('some title'));
+console.log('DEBUG:', target ? { title: target.title, videoUrl: target.videoUrl, isPublished: target.isPublished } : 'NOT FOUND');
+```
+
+Open the browser DevTools console on the live Wix page to see the output (look past the `Running the code for the ... page` Wix startup message).
+
+---
+
 ## Notes
 
-- The library page currently has no pagination — all published lessons are loaded at once. If the collection grows beyond ~500 lessons, add server-side pagination to the Velo query.
+- The library page currently has no pagination — all published lessons are loaded at once (`limit(1000)`). If the collection grows beyond ~500 lessons, add server-side pagination to the Velo query.
 - The `isPublished` flag on Lessons is the content gate — anything unpublished is silently excluded from the query.
 - The React app never talks directly to Wix. All data flows through the postMessage bridge. This means the app can be developed and tested entirely offline using `DEV_DATA`.

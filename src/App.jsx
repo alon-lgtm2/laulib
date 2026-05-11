@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { trackEvent } from './analytics.js';
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 
@@ -79,8 +80,8 @@ function detectMedia(url) {
     if (m) return { type: 'youtube', src: `https://www.youtube.com/embed/${m[1]}?rel=0&modestbranding=1` };
   }
 
-  // Audio file
-  if (/\.(mp3|m4a|ogg|wav|aac|flac)(\?|$)/i.test(u))
+  // Audio file (by extension or Wix CDN audio path)
+  if (/\.(mp3|m4a|ogg|wav|aac|flac)(\?|#|$)/i.test(u) || /wixstatic\.com\/mp3\//i.test(u))
     return { type: 'audio', src: u };
 
   // Video file
@@ -113,6 +114,7 @@ export default function App({ data }) {
   const [isMobile,       setIsMobile]       = useState(
     () => typeof window !== 'undefined' && window.innerWidth < 640
   );
+  const searchDebounceRef = useRef(null);
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 640);
@@ -136,12 +138,13 @@ export default function App({ data }) {
   function lessonCount(tid) {
     const sids = series.filter(s => s.topic === tid).map(s => s._id);
     return lessons.filter(l =>
-      sids.includes(l.series) || (l.additionalSeries || []).some(sid => sids.includes(sid))
+      sids.includes(l.series) || (l.multireference || []).some(ref => sids.includes(ref._id || ref))
     ).length;
   }
 
   function goTopic(tid) {
     const topicSeries = series.filter(s => s.topic === tid);
+    trackEvent('topic_view', { topic_name: topics.find(t => t._id === tid)?.title, topic_id: tid });
     setTopicId(tid);
     setSeriesId(topicSeries.length === 1 ? topicSeries[0]._id : null);
     setQuery('');
@@ -149,6 +152,7 @@ export default function App({ data }) {
 
   function shareLesson(lesson, e) {
     e.stopPropagation();
+    trackEvent('share', { content_type: 'lesson', item_id: lesson._id, lesson_title: lesson.title });
     const url  = lesson.videoUrl || 'https://liron03.wixstudio.com/bavua/blank-1-1';
     const text = lesson.title;
 
@@ -180,6 +184,18 @@ export default function App({ data }) {
     }
   }
 
+  function handleSearchChange(e) {
+    const val = e.target.value;
+    setQuery(val);
+    setSeriesId(null);
+    clearTimeout(searchDebounceRef.current);
+    if (val.trim()) {
+      searchDebounceRef.current = setTimeout(() => {
+        trackEvent('search', { search_term: val.trim() });
+      }, 1000);
+    }
+  }
+
   if (!data) return null;
 
   const inLessons     = !!seriesId || !!query;
@@ -189,7 +205,7 @@ export default function App({ data }) {
     .filter(s => s.topic === topicId);
 
   const visibleLessons = seriesId
-    ? lessons.filter(l => l.series === seriesId || (l.additionalSeries || []).includes(seriesId))
+    ? lessons.filter(l => l.series === seriesId || (l.multireference || []).some(ref => (ref._id || ref) === seriesId))
     : lessons.filter(l =>
         l.title?.toLowerCase().includes(query.toLowerCase()) ||
         (l.tags||[]).some(t => t.toLowerCase().includes(query.toLowerCase())) ||
@@ -288,7 +304,7 @@ export default function App({ data }) {
               </svg>
               <input className="bavua-search" style={s.searchInput} type="text"
                 placeholder="חפש בספריה..." value={query}
-                onChange={e => { setQuery(e.target.value); setSeriesId(null); }}
+                onChange={handleSearchChange}
               />
               {query && <button className="clear-btn" style={s.clearBtn} onClick={() => setQuery('')}>✕</button>}
             </div>
@@ -308,7 +324,7 @@ export default function App({ data }) {
               type="text"
               placeholder="חפש בספריה..."
               value={query}
-              onChange={e => { setQuery(e.target.value); setSeriesId(null); }}
+              onChange={handleSearchChange}
             />
             {query && (
               <button className="clear-btn" style={s.clearBtn} onClick={() => setQuery('')}>✕</button>
@@ -355,6 +371,7 @@ export default function App({ data }) {
               </div>
 
               {/* Lesson rows or book grid */}
+              <div style={{ flex: 1, overflowY: 'auto' }}>
               {visibleLessons.some(l => l.coverImage) ? (
 
                 /* ── Book grid ── */
@@ -372,6 +389,7 @@ export default function App({ data }) {
                       rel="noopener noreferrer"
                       className="book-card"
                       style={s.bookCard}
+                      onClick={() => trackEvent('book_click', { book_title: lesson.title, book_id: lesson._id })}
                     >
                       {lesson.coverImage && (
                         <img
@@ -403,21 +421,29 @@ export default function App({ data }) {
                   {visibleLessons.map(lesson => {
                     const thumb = ytThumb(lesson.videoUrl);
                     const isYoutube = !!thumb;
-                    const isPdf = !isYoutube && lesson.externalUrl && /\.pdf(\?|$)/i.test(lesson.externalUrl);
-                    const isWebArticle = !isYoutube && lesson.externalUrl && !isPdf;
+                    const detectedMedia = !isYoutube ? detectMedia(lesson.videoUrl) : null;
+                    const isAudioVideo = !!(detectedMedia && (detectedMedia.type === 'audio' || detectedMedia.type === 'video'));
+                    const isPdf = !isYoutube && !isAudioVideo && lesson.externalUrl && /\.pdf(\?|$)/i.test(lesson.externalUrl);
+                    const isWebArticle = !isYoutube && !isAudioVideo && lesson.externalUrl && !isPdf;
                     const isArticle = isPdf || isWebArticle;
 
                     const handleClick = () => {
-                      if (isYoutube) setSelectedLesson(lesson);
-                      else if (isPdf) setSelectedLesson(lesson);
-                      else if (isWebArticle) window.open(lesson.externalUrl, '_blank', 'noopener,noreferrer');
+                      const mediaType = isYoutube ? 'youtube'
+                        : detectedMedia?.type === 'audio' ? 'audio'
+                        : detectedMedia?.type === 'video' ? 'video'
+                        : isPdf ? 'pdf'
+                        : isWebArticle ? 'article'
+                        : 'unknown';
+                      trackEvent('lesson_open', { lesson_title: lesson.title, lesson_id: lesson._id, media_type: mediaType });
+                      if (isWebArticle) window.open(lesson.externalUrl, '_blank', 'noopener,noreferrer');
+                      else if (lesson.videoUrl || lesson.externalUrl) setSelectedLesson(lesson);
                     };
 
                     return (
                       <div
                         key={lesson._id}
                         className="lesson-thumb-card"
-                        style={{ ...s.thumbCard, cursor: (isYoutube || isArticle) ? 'pointer' : 'default' }}
+                        style={{ ...s.thumbCard, cursor: (lesson.videoUrl || isArticle) ? 'pointer' : 'default' }}
                         onClick={handleClick}
                       >
                         {/* Thumbnail / Article header */}
@@ -463,6 +489,7 @@ export default function App({ data }) {
                 </div>
 
               )}
+              </div>
             </div>
           </div>
 
@@ -479,13 +506,16 @@ export default function App({ data }) {
           }}>
             {visibleSeries.length === 0 && <Empty text="אין סדרות לנושא זה" dark />}
             {visibleSeries.map(ser => {
-              const count = lessons.filter(l => l.series === ser._id || (l.additionalSeries || []).includes(ser._id)).length;
+              const count = lessons.filter(l => l.series === ser._id || (l.multireference || []).some(ref => (ref._id || ref) === ser._id)).length;
               return (
                 <div
                   key={ser._id}
                   className="series-card"
                   style={s.seriesCard}
-                  onClick={() => setSeriesId(ser._id)}
+                  onClick={() => {
+                    trackEvent('series_open', { series_title: ser.title, series_id: ser._id, topic: topics.find(t => t._id === topicId)?.title });
+                    setSeriesId(ser._id);
+                  }}
                 >
                   <div style={{...s.cardStripe, backgroundColor: C.gold}} />
                   <div style={{ ...s.cardBody, padding: isMobile ? '16px 16px 14px' : '20px 22px 18px' }}>
@@ -550,6 +580,9 @@ export default function App({ data }) {
               <h2 style={{ ...s.modalTitle, fontSize: isMobile ? 18 : 21 }}>{selectedLesson.title}</h2>
               {selectedLesson.subtitle && (
                 <p style={s.lessonSubtitle}>{selectedLesson.subtitle}</p>
+              )}
+              {selectedLesson.description && (
+                <p style={s.modalDescription}>{selectedLesson.description}</p>
               )}
 
               {/* Media player */}
@@ -1038,6 +1071,10 @@ const s = {
   modalTitle: {
     fontSize:21, fontWeight:900, color:C.navy,
     lineHeight:1.35, margin:0,
+  },
+  modalDescription: {
+    fontSize:14, color:C.muted, lineHeight:1.7,
+    margin:0, whiteSpace:'pre-wrap',
   },
   videoWrap: {
     position:'relative', width:'100%',
