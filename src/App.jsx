@@ -408,13 +408,8 @@ export default function App({ data }) {
 
               ) : (
 
-                /* ── Lesson thumbnail grid ── */
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(auto-fill, minmax(220px, 1fr))',
-                  gap: isMobile ? 12 : 18,
-                  padding: isMobile ? '12px 10px 20px' : '18px 22px 26px',
-                }}>
+                /* ── Lesson list ── */
+                <div style={{ padding: 0 }}>
                   {visibleLessons.length === 0 && (
                     <Empty text="לא נמצאו שיעורים" dark={false} />
                   )}
@@ -422,15 +417,15 @@ export default function App({ data }) {
                     const thumb = ytThumb(lesson.videoUrl);
                     const isYoutube = !!thumb;
                     const detectedMedia = !isYoutube ? detectMedia(lesson.videoUrl) : null;
-                    const isAudioVideo = !!(detectedMedia && (detectedMedia.type === 'audio' || detectedMedia.type === 'video'));
-                    const isPdf = !isYoutube && !isAudioVideo && lesson.externalUrl && /\.pdf(\?|$)/i.test(lesson.externalUrl);
-                    const isWebArticle = !isYoutube && !isAudioVideo && lesson.externalUrl && !isPdf;
-                    const isArticle = isPdf || isWebArticle;
+                    const isAudio = !isYoutube && detectedMedia?.type === 'audio';
+                    const isVideo = !isYoutube && detectedMedia?.type === 'video';
+                    const isPdf = !isYoutube && !isAudio && !isVideo && lesson.externalUrl && /\.pdf(\?|$)/i.test(lesson.externalUrl);
+                    const isWebArticle = !isYoutube && !isAudio && !isVideo && lesson.externalUrl && !isPdf;
 
                     const handleClick = () => {
                       const mediaType = isYoutube ? 'youtube'
-                        : detectedMedia?.type === 'audio' ? 'audio'
-                        : detectedMedia?.type === 'video' ? 'video'
+                        : isAudio ? 'audio'
+                        : isVideo ? 'video'
                         : isPdf ? 'pdf'
                         : isWebArticle ? 'article'
                         : 'unknown';
@@ -439,49 +434,62 @@ export default function App({ data }) {
                       else if (lesson.videoUrl || lesson.externalUrl) setSelectedLesson(lesson);
                     };
 
+                    const iconBg = (isYoutube || isVideo) ? C.navy
+                      : isAudio ? '#1A6FA8'
+                      : isPdf ? C.gold
+                      : '#8B9099';
+
+                    const iconSvg = (isYoutube || isVideo) ? (
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z"/></svg>
+                    ) : isAudio ? (
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
+                      </svg>
+                    ) : isPdf ? (
+                      <svg width="12" height="13" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+                      </svg>
+                    ) : (
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+                      </svg>
+                    );
+
                     return (
                       <div
                         key={lesson._id}
-                        className="lesson-thumb-card"
-                        style={{ ...s.thumbCard, cursor: (lesson.videoUrl || isArticle) ? 'pointer' : 'default' }}
+                        className="lesson-row"
+                        style={{
+                          ...s.lessonRow,
+                          padding: isMobile ? '12px 16px' : '14px 24px',
+                          cursor: (lesson.videoUrl || lesson.externalUrl) ? 'pointer' : 'default',
+                        }}
                         onClick={handleClick}
                       >
-                        {/* Thumbnail / Article header */}
-                        <div style={s.thumbWrap}>
-                          {isYoutube ? (
-                            <>
-                              <img src={thumb} alt={lesson.title} style={s.thumbImg} />
-                              <div className="thumb-play-overlay" style={s.thumbPlay}>
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
-                                  <path d="M8 5v14l11-7z"/>
-                                </svg>
-                              </div>
-                            </>
-                          ) : isArticle ? (
-                            <div style={s.articleThumbHeader}>
-                              <div style={s.articleDocLines}>
-                                {[1, 0.65, 0.85, 0.5, 0.75].map((w, i) => (
-                                  <div key={i} style={{ height: 3, borderRadius: 2, width: `${w * 100}%`, background: 'rgba(255,255,255,0.25)' }} />
-                                ))}
-                              </div>
-                              <span style={s.articleThumbBadge}>{isPdf ? '📄 PDF' : '✍ מאמר'}</span>
-                            </div>
-                          ) : (
-                            <div style={s.thumbPlaceholder}>♫</div>
-                          )}
+                        <div style={{
+                          width: 32, height: 32, borderRadius: 8,
+                          backgroundColor: iconBg,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          flexShrink: 0, marginTop: 1,
+                        }}>
+                          {iconSvg}
                         </div>
-                        {/* Info */}
-                        <div style={s.thumbInfo}>
-                          <span style={{ ...s.thumbTitle, fontSize: isMobile ? 13 : 14 }}>{lesson.title}</span>
-                          {lesson.subtitle && <p style={s.thumbSub}>{lesson.subtitle}</p>}
-                          <div style={{ ...s.chips, marginTop: 4 }}>
-                            {lesson.duration && (
-                              <span style={s.chipGray}>⏱ {formatDuration(lesson.duration)}</span>
-                            )}
-                            {(lesson.tags||[]).slice(0,2).map(tag => (
-                              <span key={tag} style={s.chipTag}>{tag}</span>
-                            ))}
-                          </div>
+                        <div style={s.lessonBody}>
+                          <span style={{ ...s.lessonTitle, fontSize: isMobile ? 14 : 15 }}>{lesson.title}</span>
+                          {lesson.subtitle && <p style={s.lessonSubtitle}>{lesson.subtitle}</p>}
+                          {!isMobile && lesson.description && (
+                            <p style={s.lessonDesc}>{lesson.description}</p>
+                          )}
+                          {(lesson.duration || (lesson.tags||[]).length > 0) && (
+                            <div style={{ ...s.chips, marginTop: 2 }}>
+                              {lesson.duration && (
+                                <span style={s.chipGray}>⏱ {formatDuration(lesson.duration)}</span>
+                              )}
+                              {(lesson.tags||[]).slice(0,2).map(tag => (
+                                <span key={tag} style={s.chipTag}>{tag}</span>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </div>
                     );
@@ -993,9 +1001,10 @@ const s = {
     flex:1, overflowY:'auto', padding:'8px 22px 22px',
   },
   lessonRow: {
-    display:'flex', alignItems:'center', gap:14,
-    padding:'13px 12px', borderRadius:12, cursor:'pointer',
-    transition:'background 0.15s', marginBottom:2,
+    display:'flex', alignItems:'flex-start', gap:14,
+    padding:'14px 24px', borderRadius:0, cursor:'pointer',
+    transition:'background 0.15s, box-shadow 0.15s',
+    borderBottom:`1px solid ${C.border}`,
   },
   lessonNum: {
     width:32, height:32, borderRadius:'50%',
@@ -1009,6 +1018,10 @@ const s = {
   },
   lessonTitle: { fontSize:15, fontWeight:600, color:C.text, lineHeight:1.4 },
   lessonSubtitle: { fontSize:12, color:C.muted, margin:'2px 0 0', lineHeight:1.4 },
+  lessonDesc: {
+    fontSize:12, color:C.faint, margin:'4px 0 0', lineHeight:1.55,
+    display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden',
+  },
   chips: { display:'flex', gap:8, flexWrap:'wrap', alignItems:'center' },
   chip: { fontSize:11, fontWeight:600, padding:'2px 8px', borderRadius:20 },
   chipGray: { fontSize:11, color:C.muted },
@@ -1192,6 +1205,11 @@ const css = `
 
   .lesson-row:hover {
     background-color: ${C.cream} !important;
+    box-shadow: inset -3px 0 0 ${C.gold} !important;
+  }
+
+  .lesson-row:last-child {
+    border-bottom: none !important;
   }
 
   .back-btn:hover {
