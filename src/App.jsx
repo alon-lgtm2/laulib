@@ -262,7 +262,7 @@ export default function App({ data }) {
       {/* ── Desktop sidebar ── */}
       {!isMobile && (
         <aside style={s.sidebar}>
-          <nav style={s.topicNav}>
+          <nav style={s.topicNav} className="bavua-dark-scroll">
             {topics.map(t => {
               const active = t._id === topicId;
               return (
@@ -371,7 +371,7 @@ export default function App({ data }) {
               </div>
 
               {/* Lesson rows or book grid */}
-              <div style={{ flex: 1, overflowY: 'auto' }}>
+              <ScrollPanel fadeColor="255,255,255">
               {visibleLessons.some(l => l.coverImage) ? (
 
                 /* ── Book grid ── */
@@ -409,7 +409,7 @@ export default function App({ data }) {
               ) : (
 
                 /* ── Lesson list ── */
-                <div style={{ padding: 0 }}>
+                <div style={{ padding: isMobile ? '10px 12px 16px' : 0 }}>
                   {visibleLessons.length === 0 && (
                     <Empty text="לא נמצאו שיעורים" dark={false} />
                   )}
@@ -497,13 +497,14 @@ export default function App({ data }) {
                 </div>
 
               )}
-              </div>
+              </ScrollPanel>
             </div>
           </div>
 
         ) : (
 
           /* ── Series grid ── */
+          <ScrollPanel fadeColor="74,113,255" style={{ flex: 1 }}>
           <div style={{
             ...s.seriesGrid,
             gridTemplateColumns: isMobile
@@ -547,6 +548,7 @@ export default function App({ data }) {
               );
             })}
           </div>
+          </ScrollPanel>
         )}
       </main>
 
@@ -664,6 +666,86 @@ export default function App({ data }) {
           </div>
         );
       })()}
+    </div>
+  );
+}
+
+// ─── ScrollPanel — fade shadows + nav buttons ─────────────────────────────────
+
+function ScrollPanel({ children, fadeColor = '255,255,255', style }) {
+  const ref = useRef(null);
+  const [canUp,   setCanUp]   = useState(false);
+  const [canDown, setCanDown] = useState(false);
+
+  const update = () => {
+    const el = ref.current;
+    if (!el) return;
+    setCanUp(el.scrollTop > 8);
+    setCanDown(el.scrollTop < el.scrollHeight - el.clientHeight - 8);
+  };
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    update();
+    el.addEventListener('scroll', update, { passive: true });
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => { el.removeEventListener('scroll', update); ro.disconnect(); };
+  }, []);
+
+  const scroll = dir => ref.current?.scrollBy({ top: dir * 240, behavior: 'smooth' });
+  const fadeT = `linear-gradient(to bottom, rgb(${fadeColor}) 0%, rgba(${fadeColor},0) 100%)`;
+  const fadeB = `linear-gradient(to top,    rgb(${fadeColor}) 0%, rgba(${fadeColor},0) 100%)`;
+
+  return (
+    <div style={{ position: 'relative', flex: 1, overflow: 'hidden', ...style }}>
+      <div style={{
+        position: 'absolute', top: 0, left: 0, right: 0, height: 52, zIndex: 10,
+        pointerEvents: 'none', background: fadeT,
+        opacity: canUp ? 1 : 0, transition: 'opacity 0.25s',
+      }} />
+      <div ref={ref} style={{ height: '100%', overflowY: 'auto' }}>
+        {children}
+      </div>
+      <div style={{
+        position: 'absolute', bottom: 0, left: 0, right: 0, height: 68, zIndex: 10,
+        pointerEvents: 'none', background: fadeB,
+        opacity: canDown ? 1 : 0, transition: 'opacity 0.25s',
+      }} />
+      {(canUp || canDown) && (
+        <div style={{
+          position: 'absolute', right: 12, bottom: 12, zIndex: 20,
+          display: 'flex', flexDirection: 'column', gap: 6,
+        }}>
+          {[
+            { dir: -1, active: canUp,   label: 'גלול למעלה', d: 'M4 10l4-4 4 4' },
+            { dir:  1, active: canDown, label: 'גלול למטה',  d: 'M4 6l4 4 4-4'  },
+          ].map(({ dir, active, label, d }) => (
+            <button
+              key={dir}
+              className="scroll-nav-btn"
+              disabled={!active}
+              onClick={() => active && scroll(dir)}
+              aria-label={label}
+              style={{
+                width: 34, height: 34, borderRadius: '50%', border: 'none',
+                backgroundColor: active ? 'rgba(27,63,106,0.85)' : 'rgba(27,63,106,0.18)',
+                color: active ? '#fff' : 'rgba(255,255,255,0.3)',
+                cursor: active ? 'pointer' : 'default',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: active ? '0 2px 10px rgba(0,0,0,0.25)' : 'none',
+                transition: 'all 0.18s', fontFamily: 'inherit',
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                <path d={d} stroke="currentColor" strokeWidth="2.2"
+                  strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -860,7 +942,7 @@ const s = {
     display:'grid',
     gridTemplateColumns:'repeat(auto-fill, minmax(260px, 1fr))',
     gap:20, padding:'24px 22px',
-    overflowY:'auto', flex:1, alignContent:'start',
+    alignContent:'start',
   },
   seriesCard: {
     backgroundColor:C.white, borderRadius:16,
@@ -1242,7 +1324,18 @@ const css = `
   .filter-strip::-webkit-scrollbar { display: none; }
   .filter-strip { scrollbar-width: none; -ms-overflow-style: none; }
 
-  ::-webkit-scrollbar { width: 4px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius:10px; }
+  ::-webkit-scrollbar { width: 7px; }
+  ::-webkit-scrollbar-track { background: rgba(0,0,0,0.05); border-radius: 10px; }
+  ::-webkit-scrollbar-thumb { background: rgba(27,63,106,0.3); border-radius: 10px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(27,63,106,0.58); }
+
+  /* Sidebar (dark surface) scrollbar */
+  .bavua-dark-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.22); }
+  .bavua-dark-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.45); }
+
+  /* Scroll nav buttons */
+  .scroll-nav-btn:hover:not(:disabled) {
+    transform: scale(1.12) !important;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.35) !important;
+  }
 `;
