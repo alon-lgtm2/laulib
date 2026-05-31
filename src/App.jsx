@@ -9,21 +9,29 @@ const C = {
   // Site palette
   blue:       SITE_BLUE,
   blueDeep:   '#3355E8',
-  blueLight:  'rgba(74,113,255,0.15)',
+  blueLight:  'rgba(74,113,255,0.10)',
   blueWhite:  'rgba(255,255,255,0.12)',
   blueWhite2: 'rgba(255,255,255,0.22)',
+  // ── Brand trio (2026 redesign) ──
+  emerald:    '#00D28E',   // sidebar fill, stripe-right, footer text
+  emeraldDeep:'#00A875',   // hover/contrast on emerald surfaces
+  mint:       '#BEFFDC',   // count badges, footer box, stripe-left
+  amber:      '#FCB400',   // active topic row, title brackets, stripe-mid
   // Content palette
+  ink:        '#1A1A1A',   // near-black titles + text on light surfaces
   navy:       '#1B3F6A',
   navyDeep:   '#122b4f',
-  gold:       '#B8873A',
+  gold:       '#B8873A',   // (legacy — retained for modal accents)
   goldLight:  'rgba(184,135,58,0.14)',
   goldPale:   'rgba(184,135,58,0.07)',
   cream:      '#F8F4EE',
   creamDark:  '#EDE8E0',
   white:      '#FFFFFF',
   text:       '#1C1C1C',
+  graySoft:   '#B4B4B4',   // counts, subtitles, descriptions
   muted:      '#6B7280',
   faint:      '#9CA3AF',
+  divider:    '#D4D6D5',   // row/card dividers + search border
   border:     '#E5DED4',
   // Media type colours
   video:      '#2563EB',
@@ -33,6 +41,31 @@ const C = {
   book:       '#7C3AED',
   bookLight:  'rgba(124,58,237,0.10)',
 };
+
+// Tricolor brand stripe. direction:ltr pins the order regardless of the RTL
+// parent, so right-to-left it reads emerald → amber → mint (matches the design).
+function TriStripe({ height = 8, radius = 0 }) {
+  return (
+    <div style={{ display: 'flex', direction: 'ltr', height, flexShrink: 0, borderRadius: radius, overflow: 'hidden' }}>
+      <div style={{ flex: '0 0 30%', backgroundColor: C.mint }} />
+      <div style={{ flex: '0 0 30%', backgroundColor: C.amber }} />
+      <div style={{ flex: '1 1 40%', backgroundColor: C.emerald }} />
+    </div>
+  );
+}
+
+// Amber curly brace drawn as SVG so it is immune to RTL bidi-mirroring (the
+// `{ }` text glyphs get auto-flipped in RTL). Openings face the title (embrace),
+// matching the designer's frame. `flip` mirrors it for the opposite side.
+function Brace({ flip = false, h = 50 }) {
+  return (
+    <svg height={h} width={Math.round(h * 0.42)} viewBox="0 0 16 40" fill="none" aria-hidden="true"
+      style={{ flexShrink: 0, transform: flip ? 'scaleX(-1)' : 'none' }}>
+      <path d="M12 2 C8 2 8 6 8 10 C8 14 8 18 4 20 C8 22 8 26 8 30 C8 34 8 38 12 38"
+        stroke={C.amber} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
 
 const MEDIA = {
   video:   { label:'וידאו', icon:'▶', color:C.video,  bg:C.videoLight  },
@@ -135,6 +168,54 @@ export default function App({ data }) {
     if (topics.length && !topics.find(t => t._id === topicId)) setTopicId(topics[0]._id);
   }, [topics]);
 
+  // Deep-link: open a specific lesson when ?lesson=<id> was on the parent URL
+  useEffect(() => {
+    const id = data?.openLessonId;
+    if (!id || !lessons.length) return;
+    const lesson = lessons.find(l => l._id === id);
+    if (!lesson) return;
+    const seriesObj = series.find(s => s._id === lesson.series);
+    if (seriesObj) {
+      setTopicId(seriesObj.topic);
+      setSeriesId(lesson.series);
+    }
+    setSelectedLesson(lesson);
+  }, [data?.openLessonId, lessons.length]);
+
+  // Deep-link: pre-populate search when ?q=<term> was on the parent URL
+  useEffect(() => {
+    const q = data?.initialQuery;
+    if (!q) return;
+    setQuery(q);
+    setSeriesId(null);
+  }, [data?.initialQuery]);
+
+  // DEV-only: drive the initial view from URL params for local preview/testing.
+  // (?topic=&series=&q=&lesson=) — stripped from production builds.
+  useEffect(() => {
+    if (!import.meta.env.DEV || !topics.length) return;
+    const p = new URLSearchParams(window.location.search);
+    if (p.get('topic'))  setTopicId(p.get('topic'));
+    if (p.get('series')) setSeriesId(p.get('series'));
+    if (p.get('q'))      setQuery(p.get('q'));
+    if (p.get('lesson')) {
+      const l = lessons.find(x => x._id === p.get('lesson'));
+      if (l) setSelectedLesson(l);
+    }
+  }, [topics.length, lessons.length]);
+
+  // Notify the Wix page so it can sync the URL bar
+  const lastReportedLessonId = useRef(null);
+  useEffect(() => {
+    const id = selectedLesson?._id || null;
+    if (id === lastReportedLessonId.current) return;
+    if (window.parent !== window) {
+      if (id) window.parent.postMessage({ type: 'LESSON_OPENED', id }, '*');
+      else    window.parent.postMessage({ type: 'LESSON_CLOSED' }, '*');
+    }
+    lastReportedLessonId.current = id;
+  }, [selectedLesson]);
+
   function lessonCount(tid) {
     const sids = series.filter(s => s.topic === tid).map(s => s._id);
     return lessons.filter(l =>
@@ -206,53 +287,38 @@ export default function App({ data }) {
 
   const visibleLessons = seriesId
     ? lessons.filter(l => l.series === seriesId || (l.multireference || []).some(ref => (ref._id || ref) === seriesId))
-    : lessons.filter(l =>
-        l.title?.toLowerCase().includes(query.toLowerCase()) ||
-        (l.tags||[]).some(t => t.toLowerCase().includes(query.toLowerCase())) ||
-        l.description?.toLowerCase().includes(query.toLowerCase())
-      );
-
-  // ── Mobile topic strip (brand + pills in one row) ──────────────────────────
-  const MobileTopicStrip = () => (
-    <div style={s.mobileTopicRow}>
-      {/* Brand — fixed, doesn't scroll */}
-      <div style={s.mobileBrand}>
-        <div style={s.brandDot} />
-        <span style={{ ...s.brandText, fontSize: 9 }}>ספריית<br/>התוכן</span>
-      </div>
-      {/* Topic pills — scrollable */}
-      <div className="mobile-topic-strip" style={s.mobileTopicStrip}>
-        {topics.map(t => {
-          const active = t._id === topicId;
-          return (
-            <button
-              key={t._id}
-              className={`mobile-topic-btn${active ? ' active' : ''}`}
-              style={{ ...s.mobileTopicBtn, ...(active ? s.mobileTopicBtnActive : {}) }}
-              onClick={() => goTopic(t._id)}
-            >
-              {t.title}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
+    : lessons.filter(l => {
+        const q = query.toLowerCase();
+        if (l.title?.toLowerCase().includes(q)) return true;
+        if (l.subtitle?.toLowerCase().includes(q)) return true;
+        if (l.description?.toLowerCase().includes(q)) return true;
+        if ((l.tags||[]).some(t => t.toLowerCase().includes(q))) return true;
+        // Match by series name — bidirectional so "מגילת רות" matches series "רות"
+        const sIds = [l.series, ...((l.multireference||[]).map(r => r._id || r))].filter(Boolean);
+        return sIds.some(id => {
+          const t = series.find(s => s._id === id)?.title?.toLowerCase();
+          return t && (t.includes(q) || q.includes(t));
+        });
+      });
 
   return (
     <div dir="rtl" style={{ ...s.root, flexDirection: 'column', minHeight: isMobile ? 0 : 600 }}>
       <style>{css}</style>
 
-      {/* ── Mobile: brand + topic strip ── */}
-      {isMobile && <MobileTopicStrip />}
-
-      {/* ── Hero — full width ── */}
+      {/* ── Hero — top-right header ── */}
       {!isMobile && (
-        <header style={{ ...s.hero, padding: '36px 36px 28px' }}>
-          <h1 style={{ ...s.heroTitle, fontSize: 28 }}>ספריית התוכן של הרב בני</h1>
-          <p style={{ ...s.heroSub, fontSize: 16 }}>שיעורים, מאמרים והרצאות</p>
+        <header style={{ ...s.hero, padding: '40px 46px 24px', alignItems: 'flex-start' }}>
+          <div style={s.heroTitleRow}>
+            <Brace flip h={46} />
+            <h1 style={{ ...s.heroTitle, fontSize: 30 }}>ספריית התוכן של הרב בני</h1>
+            <Brace h={46} />
+          </div>
+          <p style={{ ...s.heroSub, fontSize: 17 }}>שיעורים, מאמרים והרצאות</p>
           <p style={{ ...s.heroDesc, fontSize: 13 }}>חיפוש לפי נושאים, סוגי תוכן וסדרות הלימוד</p>
-          <p style={{ ...s.heroTagline, fontSize: 12 }}>פתוח וחינמי · לכל מי שמבקש ללמוד</p>
+          <div style={s.heroTaglineWrap}>
+            <p style={{ ...s.heroTagline, fontSize: 12, margin: 0 }}>פתוח וחינמי · לכל מי שמבקש ללמוד</p>
+            <div style={{ width: 232 }}><TriStripe height={3} /></div>
+          </div>
         </header>
       )}
 
@@ -282,7 +348,7 @@ export default function App({ data }) {
           </nav>
 
           <div style={s.sidebarFooter}>
-            <span style={s.footerText}>בבואה © {new Date().getFullYear()}</span>
+            <span style={s.footerText}>בבואה {new Date().getFullYear()}</span>
           </div>
         </aside>
       )}
@@ -292,12 +358,19 @@ export default function App({ data }) {
 
         {/* Mobile hero */}
         {isMobile && (
-          <header style={{ ...s.hero, padding: '28px 20px 22px' }}>
-            <h1 style={{ ...s.heroTitle, fontSize: 22 }}>ספריית התוכן של הרב בני</h1>
-            <p style={{ ...s.heroSub, fontSize: 14 }}>שיעורים, מאמרים והרצאות</p>
+          <header style={{ ...s.hero, padding: '26px 20px 18px' }}>
+            <div style={{ ...s.heroTitleRow, alignSelf: 'center', gap: 12 }}>
+              <Brace flip h={38} />
+              <h1 style={{ ...s.heroTitle, fontSize: 24, textAlign: 'center' }}>ספריית התוכן של הרב בני</h1>
+              <Brace h={38} />
+            </div>
+            <p style={{ ...s.heroSub, fontSize: 15, marginTop: 8 }}>שיעורים, מאמרים והרצאות</p>
             <p style={{ ...s.heroDesc, fontSize: 12 }}>חיפוש לפי נושאים, סוגי תוכן וסדרות הלימוד</p>
-            <p style={{ ...s.heroTagline, fontSize: 11 }}>פתוח וחינמי · לכל מי שמבקש ללמוד</p>
-            <div style={{ ...s.searchWrap, marginTop: 14 }}>
+            <div style={s.heroTaglineWrap}>
+              <p style={{ ...s.heroTagline, fontSize: 11, margin: 0 }}>פתוח וחינמי · לכל מי שמבקש ללמוד</p>
+              <div style={{ width: 210 }}><TriStripe height={3} /></div>
+            </div>
+            <div style={{ ...s.searchWrap, marginTop: 16 }}>
               <svg width="14" height="14" viewBox="0 0 20 20" fill="none" style={{flexShrink:0}}>
                 <circle cx="9" cy="9" r="6" stroke="rgba(255,255,255,0.5)" strokeWidth="2"/>
                 <path d="M14 14l3 3" stroke="rgba(255,255,255,0.5)" strokeWidth="2" strokeLinecap="round"/>
@@ -307,6 +380,23 @@ export default function App({ data }) {
                 onChange={handleSearchChange}
               />
               {query && <button className="clear-btn" style={s.clearBtn} onClick={() => setQuery('')}>✕</button>}
+            </div>
+
+            {/* Topic pills — wrapping, inline in hero, no separate banner */}
+            <div style={s.mobileTopicPills}>
+              {topics.map(t => {
+                const active = t._id === topicId;
+                return (
+                  <button
+                    key={t._id}
+                    className={`mobile-topic-btn${active ? ' active' : ''}`}
+                    style={{ ...s.mobileTopicBtn, ...(active ? s.mobileTopicBtnActive : {}) }}
+                    onClick={() => goTopic(t._id)}
+                  >
+                    {t.title}
+                  </button>
+                );
+              })}
             </div>
           </header>
         )}
@@ -355,7 +445,7 @@ export default function App({ data }) {
                   onClick={() => { setSeriesId(null); setQuery(''); }}
                 >
                   <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{flexShrink:0}}>
-                    <path d="M10 12l-4-4 4-4" stroke="currentColor" strokeWidth="2"
+                    <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="2"
                       strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                   חזרה
@@ -377,33 +467,72 @@ export default function App({ data }) {
                 /* ── Book grid ── */
                 <div style={{
                   display: 'grid',
-                  gridTemplateColumns: isMobile ? 'repeat(3, 1fr)' : 'repeat(auto-fill, minmax(108px, 1fr))',
+                  gridTemplateColumns: isMobile ? 'repeat(3, 1fr)' : 'repeat(auto-fill, minmax(130px, 1fr))',
                   gap: isMobile ? 10 : 14,
                   padding: isMobile ? '14px 10px 20px' : '20px 22px 28px',
                 }}>
-                  {visibleLessons.map(lesson => (
-                    <a
-                      key={lesson._id}
-                      href={lesson.externalUrl || '#'}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="book-card"
-                      style={s.bookCard}
-                      onClick={() => trackEvent('book_click', { book_title: lesson.title, book_id: lesson._id })}
-                    >
-                      {lesson.coverImage && (
-                        <img
-                          src={lesson.coverImage}
-                          alt={lesson.title}
-                          style={s.bookCover}
-                        />
-                      )}
-                      <div style={s.bookInfo}>
-                        <span style={s.bookTitle}>{lesson.title}</span>
-                        {lesson.subtitle && <p style={s.bookDesc}>{lesson.subtitle}</p>}
+                  {visibleLessons.map(lesson => {
+                    const isPdfLink = lesson.externalUrl && /\.pdf(\?|$)/i.test(lesson.externalUrl);
+                    const opensExternally = !!lesson.externalUrl && !lesson.videoUrl && !isPdfLink;
+
+                    const inner = (
+                      <>
+                        {lesson.coverImage && (
+                          <img
+                            src={lesson.coverImage}
+                            alt={lesson.title}
+                            style={s.bookCover}
+                          />
+                        )}
+                        <div style={s.bookInfo}>
+                          <span style={s.bookTitle}>{lesson.title}</span>
+                          {lesson.subtitle && <p style={s.bookDesc}>{lesson.subtitle}</p>}
+                        </div>
+                      </>
+                    );
+
+                    if (opensExternally) {
+                      return (
+                        <a
+                          key={lesson._id}
+                          href={lesson.externalUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="book-card"
+                          style={s.bookCard}
+                          onClick={() => trackEvent('book_click', { book_title: lesson.title, book_id: lesson._id })}
+                        >
+                          {inner}
+                        </a>
+                      );
+                    }
+
+                    const handleTileClick = () => {
+                      const thumb = ytThumb(lesson.videoUrl);
+                      const isYoutube = !!thumb;
+                      const detected = !isYoutube ? detectMedia(lesson.videoUrl) : null;
+                      const isAudio = !isYoutube && detected?.type === 'audio';
+                      const isVideo = !isYoutube && detected?.type === 'video';
+                      const mediaType = isYoutube ? 'youtube'
+                        : isAudio ? 'audio'
+                        : isVideo ? 'video'
+                        : isPdfLink ? 'pdf'
+                        : 'unknown';
+                      trackEvent('lesson_open', { lesson_title: lesson.title, lesson_id: lesson._id, media_type: mediaType });
+                      if (lesson.videoUrl || lesson.externalUrl) setSelectedLesson(lesson);
+                    };
+
+                    return (
+                      <div
+                        key={lesson._id}
+                        className="book-card"
+                        style={{ ...s.bookCard, cursor: (lesson.videoUrl || lesson.externalUrl) ? 'pointer' : 'default' }}
+                        onClick={handleTileClick}
+                      >
+                        {inner}
                       </div>
-                    </a>
-                  ))}
+                    );
+                  })}
                 </div>
 
               ) : (
@@ -434,10 +563,7 @@ export default function App({ data }) {
                       else if (lesson.videoUrl || lesson.externalUrl) setSelectedLesson(lesson);
                     };
 
-                    const iconBg = (isYoutube || isVideo) ? C.navy
-                      : isAudio ? '#1A6FA8'
-                      : isPdf ? C.gold
-                      : '#8B9099';
+                    const iconBg = C.blue;   // uniform blue tile per 2026 design (glyph varies by type)
 
                     const iconSvg = (isYoutube || isVideo) ? (
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z"/></svg>
@@ -467,7 +593,7 @@ export default function App({ data }) {
                         onClick={handleClick}
                       >
                         <div style={{
-                          width: 32, height: 32, borderRadius: 8,
+                          width: 32, height: 33, borderRadius: 7,
                           backgroundColor: iconBg,
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
                           flexShrink: 0, marginTop: 1,
@@ -508,10 +634,10 @@ export default function App({ data }) {
           <div style={{
             ...s.seriesGrid,
             gridTemplateColumns: isMobile
-              ? 'repeat(auto-fill, minmax(200px, 1fr))'
+              ? 'repeat(2, 1fr)'
               : 'repeat(auto-fill, minmax(260px, 1fr))',
             padding: isMobile ? '14px' : '24px 22px',
-            gap:     isMobile ? 14 : 20,
+            gap:     isMobile ? 12 : 20,
           }}>
             {visibleSeries.length === 0 && <Empty text="אין סדרות לנושא זה" dark />}
             {visibleSeries.map(ser => {
@@ -526,7 +652,7 @@ export default function App({ data }) {
                     setSeriesId(ser._id);
                   }}
                 >
-                  <div style={{...s.cardStripe, backgroundColor: C.gold}} />
+                  <TriStripe height={8} />
                   <div style={{ ...s.cardBody, padding: isMobile ? '16px 16px 14px' : '20px 22px 18px' }}>
                     <div style={s.cardTop}>
                       <span style={s.countLabel}>{count} שיעורים</span>
@@ -538,7 +664,7 @@ export default function App({ data }) {
                         פתח סדרה
                         <svg width="13" height="13" viewBox="0 0 16 16" fill="none"
                           style={{display:'inline-block', verticalAlign:'middle', marginRight:4}}>
-                          <path d="M10 12l-4-4 4-4" stroke="currentColor" strokeWidth="2.2"
+                          <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="2.2"
                             strokeLinecap="round" strokeLinejoin="round"/>
                         </svg>
                       </span>
@@ -557,6 +683,7 @@ export default function App({ data }) {
       {/* ── Video modal ── */}
       {selectedLesson && (() => {
         const detected = detectMedia(selectedLesson.videoUrl) || detectMedia(selectedLesson.externalUrl);
+        const isMobileAudio = isMobile && detected?.type === 'audio';
         return (
           <div
             style={{
@@ -570,12 +697,17 @@ export default function App({ data }) {
               style={{
                 ...s.modal,
                 borderRadius: isMobile ? '20px 20px 0 0' : 20,
-                maxHeight:    isMobile ? '92%' : '90%',
-                padding:      isMobile ? '20px 16px 28px' : '24px 28px 28px',
+                maxHeight:    isMobile ? '94%' : '90%',
+                padding:      isMobile ? '12px 16px 28px' : '24px 28px 28px',
                 width:        '100%',
               }}
               onClick={e => e.stopPropagation()}
             >
+
+              {/* Drag handle */}
+              {isMobile && (
+                <div style={{ width:36, height:4, borderRadius:2, backgroundColor:C.border, alignSelf:'center', flexShrink:0, marginBottom:8 }} />
+              )}
 
               {/* Header */}
               <div style={s.modalHeader}>
@@ -587,12 +719,16 @@ export default function App({ data }) {
                 <button style={s.closeBtn} onClick={() => setSelectedLesson(null)}>✕</button>
               </div>
 
-              <h2 style={{ ...s.modalTitle, fontSize: isMobile ? 18 : 21 }}>{selectedLesson.title}</h2>
-              {selectedLesson.subtitle && (
-                <p style={s.lessonSubtitle}>{selectedLesson.subtitle}</p>
-              )}
-              {selectedLesson.description && (
-                <p style={s.modalDescription}>{selectedLesson.description}</p>
+              {!isMobileAudio && (
+                <>
+                  <h2 style={{ ...s.modalTitle, fontSize: isMobile ? 18 : 21 }}>{selectedLesson.title}</h2>
+                  {selectedLesson.subtitle && (
+                    <p style={s.lessonSubtitle}>{selectedLesson.subtitle}</p>
+                  )}
+                  {selectedLesson.description && (
+                    <p style={s.modalDescription}>{selectedLesson.description}</p>
+                  )}
+                </>
               )}
 
               {/* Media player */}
@@ -609,8 +745,19 @@ export default function App({ data }) {
               )}
 
               {detected?.type === 'audio' && (
-                <div style={s.audioWrap}>
-                  <div style={s.audioIcon}>♫</div>
+                <div style={{ ...s.audioWrap, ...(isMobileAudio ? { padding:'20px 18px', gap:14 } : {}) }}>
+                  {isMobileAudio && (
+                    <div style={{ width:'100%', display:'flex', flexDirection:'column', gap:6 }}>
+                      <h2 style={{ ...s.modalTitle, fontSize:18, textAlign:'center', margin:0 }}>{selectedLesson.title}</h2>
+                      {selectedLesson.subtitle && (
+                        <p style={{ ...s.lessonSubtitle, textAlign:'center', margin:0 }}>{selectedLesson.subtitle}</p>
+                      )}
+                      {selectedLesson.description && (
+                        <p style={{ ...s.modalDescription, margin:'6px 0 0' }}>{selectedLesson.description}</p>
+                      )}
+                    </div>
+                  )}
+                  <div style={{ ...s.audioIcon, ...(isMobileAudio ? { width:56, height:56, fontSize:22 } : {}) }}>♫</div>
                   <audio controls style={s.audioPlayer} src={detected.src}>
                     הדפדפן שלך אינו תומך בנגן שמע.
                   </audio>
@@ -730,7 +877,7 @@ function ScrollPanel({ children, fadeColor = '255,255,255', style }) {
               aria-label={label}
               style={{
                 width: 34, height: 34, borderRadius: '50%', border: 'none',
-                backgroundColor: active ? 'rgba(27,63,106,0.85)' : 'rgba(27,63,106,0.18)',
+                backgroundColor: active ? 'rgba(74,113,255,0.9)' : 'rgba(74,113,255,0.2)',
                 color: active ? '#fff' : 'rgba(255,255,255,0.3)',
                 cursor: active ? 'pointer' : 'default',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -798,28 +945,31 @@ const s = {
   },
   mobileTopicStrip: {
     display:'flex', overflowX:'auto', flex:1,
-    padding:'8px 10px', gap:7,
+    padding:'6px 12px', gap:8,
     alignItems:'center',
   },
   mobileTopicBtn: {
-    whiteSpace:'nowrap', padding:'7px 14px',
+    whiteSpace:'nowrap', padding:'12px 20px',
     borderRadius:100,
-    border:'1.5px solid rgba(255,255,255,0.2)',
-    cursor:'pointer', fontSize:13, fontFamily:'inherit',
-    color:'rgba(255,255,255,0.7)', backgroundColor:'transparent',
-    flexShrink:0, transition:'all 0.18s',
+    border:'1.5px solid rgba(255,255,255,0.85)',
+    cursor:'pointer', fontSize:15, fontFamily:'inherit',
+    color:'#fff', backgroundColor:'transparent',
+    flexShrink:0, transition:'all 0.18s', minHeight:46,
   },
   mobileTopicBtnActive: {
-    backgroundColor: C.gold, borderColor: C.gold,
-    color:'#fff', fontWeight:700,
+    backgroundColor: C.amber, borderColor: C.amber,
+    color:C.ink, fontWeight:700,
+  },
+  mobileTopicPills: {
+    display:'flex', flexWrap:'wrap', gap:8,
+    marginTop:14,
   },
 
   // ── Desktop Sidebar ──
   sidebar: {
-    width:230, minWidth:230, flexShrink:0,
-    background:`linear-gradient(180deg, ${C.navyDeep} 0%, ${C.navy} 100%)`,
+    width:232, minWidth:232, flexShrink:0,
+    backgroundColor: C.emerald,
     display:'flex', flexDirection:'column',
-    boxShadow:'4px 0 30px rgba(0,0,0,0.25)',
   },
   brand: {
     display:'flex', alignItems:'center', gap:10,
@@ -842,33 +992,35 @@ const s = {
   },
   topicNav: {
     display:'flex', flexDirection:'column',
-    flex:1, overflowY:'auto', paddingBottom:16,
+    flex:1, overflowY:'auto', padding:'10px 0 12px',
   },
   topicBtn: {
     display:'flex', justifyContent:'space-between', alignItems:'center',
-    padding:'12px 20px', background:'none', border:'none',
-    borderRight:'3px solid transparent',
-    cursor:'pointer', color:'rgba(255,255,255,0.5)', fontSize:15,
+    gap:10, padding:'0 18px', minHeight:44,
+    background:'none', border:'none',
+    cursor:'pointer', color:C.ink, fontSize:15, fontWeight:600,
     textAlign:'right', width:'100%', fontFamily:'inherit',
-    transition:'all 0.18s ease',
+    transition:'background 0.15s ease',
   },
   topicActive: {
-    backgroundColor: C.gold,
-    color:'#fff', fontWeight:'700',
-    borderRightColor: 'transparent',
+    backgroundColor: C.amber,
+    color:C.ink, fontWeight:700,
   },
   badge: {
-    fontSize:11, fontWeight:700, padding:'2px 8px',
-    borderRadius:20, backgroundColor:'rgba(255,255,255,0.1)',
-    color:'rgba(255,255,255,0.4)', minWidth:22, textAlign:'center',
-    transition:'all 0.18s',
+    fontSize:12, fontWeight:700,
+    width:45, height:24, borderRadius:12,
+    backgroundColor:C.mint, color:C.blue,
+    display:'flex', alignItems:'center', justifyContent:'center',
+    flexShrink:0, transition:'all 0.15s',
   },
-  badgeActive: { backgroundColor:'rgba(0,0,0,0.2)', color:'#fff' },
+  badgeActive: { backgroundColor:C.blue, color:C.white },
   sidebarFooter: {
-    padding:'14px 20px',
-    borderTop:'1px solid rgba(255,255,255,0.06)',
+    padding:'17px 20px',
+    backgroundColor: C.mint,
+    display:'flex', alignItems:'center', justifyContent:'center',
+    flexShrink:0,
   },
-  footerText: { fontSize:11, color:'rgba(255,255,255,0.2)' },
+  footerText: { fontSize:13, fontWeight:600, color:C.emerald },
 
   // ── Main ──
   main: {
@@ -880,36 +1032,47 @@ const s = {
   hero: {
     backgroundColor: SITE_BLUE,
     flexShrink: 0,
-    display: 'flex', flexDirection: 'column', gap: 6,
-    borderBottom: '1px solid rgba(255,255,255,0.12)',
+    display: 'flex', flexDirection: 'column', gap: 7,
+  },
+  heroTitleRow: {
+    display: 'flex', alignItems: 'center', gap: 14, alignSelf: 'flex-start',
+  },
+  bracket: {
+    color: C.amber, fontWeight: 800, fontSize: 46, lineHeight: 0.7,
+    display: 'inline-block',
   },
   heroTitle: {
     color: C.white, fontWeight: 800, margin: 0, lineHeight: 1.2,
   },
   heroSub: {
-    color: 'rgba(255,255,255,0.9)', fontWeight: 600, margin: 0, lineHeight: 1.5,
+    color: C.white, fontWeight: 700, margin: 0, lineHeight: 1.5,
   },
   heroDesc: {
-    color: 'rgba(255,255,255,0.6)', margin: 0, lineHeight: 1.5,
+    color: 'rgba(255,255,255,0.7)', margin: 0, lineHeight: 1.5,
+  },
+  heroTaglineWrap: {
+    display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 7, marginTop: 6,
   },
   heroTagline: {
-    color: C.gold, fontWeight: 600, margin: 0, letterSpacing: '0.5px',
+    color: 'rgba(255,255,255,0.92)', fontWeight: 500, margin: 0, letterSpacing: '0.3px',
   },
 
   // ── Main search bar ──
   mainSearch: {
-    display: 'flex', alignItems: 'center', gap: 8,
-    padding: '12px 22px',
+    display: 'flex', alignItems: 'center', gap: 10,
+    height: 46, padding: '0 20px',
+    margin: '16px 24px 8px',
     backgroundColor: 'transparent',
-    borderBottom: '1px solid rgba(255,255,255,0.15)',
+    border: `1px solid ${C.divider}`,
+    borderRadius: 23,
     flexShrink: 0,
   },
   searchWrap: {
-    display:'flex', alignItems:'center', gap:8,
-    flex:1, maxWidth:400,
+    display:'flex', alignItems:'center', gap:10,
+    width:'100%',
     backgroundColor:'transparent',
-    border:'1.5px solid rgba(255,255,255,0.55)',
-    borderRadius:100, padding:'8px 16px',
+    border:`1px solid ${C.divider}`,
+    borderRadius:100, padding:'12px 18px',
     transition:'border-color 0.18s',
   },
   searchInput: {
@@ -962,17 +1125,18 @@ const s = {
   mediaPill: {
     fontSize:11, fontWeight:700, padding:'3px 10px', borderRadius:20,
   },
-  countLabel: { fontSize:12, color:C.faint, fontWeight:500 },
+  countLabel: { fontSize:12, color:C.graySoft, fontWeight:500 },
   seriesTitle: {
-    fontSize:17, fontWeight:800, color:C.navy, lineHeight:1.4, margin:'2px 0',
+    fontSize:17, fontWeight:800, color:C.ink, lineHeight:1.4, margin:'2px 0',
+    textAlign:'right',
   },
   seriesSub: { fontSize:13, color:C.muted, lineHeight:1.6 },
   cardFooter: {
     marginTop:'auto', paddingTop:12,
-    borderTop:`1px solid ${C.border}`,
+    borderTop:`1px solid ${C.divider}`,
   },
   openLabel: {
-    fontSize:13, fontWeight:600, color:C.navy,
+    fontSize:13, fontWeight:700, color:C.ink,
     display:'flex', alignItems:'center', gap:4,
   },
 
@@ -1037,10 +1201,10 @@ const s = {
     padding:'10px 12px 14px', display:'flex', flexDirection:'column', gap:4,
   },
   bookTitle: {
-    fontSize:14, fontWeight:700, color:C.navy, lineHeight:1.3,
+    fontSize:14, fontWeight:700, color:C.ink, lineHeight:1.3,
   },
   bookDesc: {
-    fontSize:12, color:C.muted, margin:0, lineHeight:1.5,
+    fontSize:12, color:C.graySoft, margin:0, lineHeight:1.5,
   },
 
   // ── Lessons ──
@@ -1053,7 +1217,7 @@ const s = {
     flex:1, overflow:'hidden',
     display:'flex', flexDirection:'column',
     backgroundColor:C.white,
-    borderRadius:18,
+    borderRadius:30,
     boxShadow:'0 4px 30px rgba(0,0,0,0.18)',
   },
   lessonsHead: {
@@ -1064,9 +1228,9 @@ const s = {
   },
   backBtn: {
     display:'flex', alignItems:'center', gap:5,
-    background:'none', border:`1.5px solid ${C.border}`,
-    borderRadius:100, padding:'7px 14px',
-    cursor:'pointer', fontSize:13, color:C.muted,
+    background:'none', border:`1.5px solid ${C.blue}`,
+    borderRadius:100, padding:'7px 16px',
+    cursor:'pointer', fontSize:13, fontWeight:600, color:C.blue,
     fontFamily:'inherit', transition:'all 0.15s',
     flexShrink:0, marginTop:4, whiteSpace:'nowrap',
   },
@@ -1076,7 +1240,7 @@ const s = {
     borderRadius:20, alignSelf:'flex-start',
   },
   lessonsTitle: {
-    fontSize:21, fontWeight:900, color:C.navy, lineHeight:1.3,
+    fontSize:21, fontWeight:900, color:C.ink, lineHeight:1.3,
   },
   lessonsSub: { fontSize:14, color:C.muted, marginTop:2 },
   lessonList: {
@@ -1086,7 +1250,7 @@ const s = {
     display:'flex', alignItems:'flex-start', gap:14,
     padding:'14px 24px', borderRadius:0, cursor:'pointer',
     transition:'background 0.15s, box-shadow 0.15s',
-    borderBottom:`1px solid ${C.border}`,
+    borderBottom:`1px solid ${C.divider}`,
   },
   lessonNum: {
     width:32, height:32, borderRadius:'50%',
@@ -1098,20 +1262,20 @@ const s = {
     flex:1, display:'flex', flexDirection:'column',
     gap:5, minWidth:0,
   },
-  lessonTitle: { fontSize:15, fontWeight:600, color:C.text, lineHeight:1.4 },
+  lessonTitle: { fontSize:15, fontWeight:700, color:C.ink, lineHeight:1.4 },
   lessonSubtitle: { fontSize:12, color:C.muted, margin:'2px 0 0', lineHeight:1.4 },
   lessonDesc: {
-    fontSize:12, color:C.faint, margin:'4px 0 0', lineHeight:1.55,
+    fontSize:12, color:C.graySoft, margin:'4px 0 0', lineHeight:1.55,
     display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden',
   },
   chips: { display:'flex', gap:8, flexWrap:'wrap', alignItems:'center' },
   chip: { fontSize:11, fontWeight:600, padding:'2px 8px', borderRadius:20 },
   chipGray: { fontSize:11, color:C.muted },
   chipTag: {
-    fontSize:11, color:C.gold,
-    border:'1px solid rgba(184,135,58,0.35)',
-    borderRadius:6, padding:'1px 7px',
-    backgroundColor:C.goldPale,
+    fontSize:11, color:C.blue,
+    border:`1px solid ${C.blue}`,
+    borderRadius:6, padding:'2px 10px',
+    backgroundColor:C.blueLight,
   },
   shareBtn: {
     background:'none', border:'none', cursor:'pointer',
@@ -1164,7 +1328,7 @@ const s = {
     transition:'all 0.15s',
   },
   modalTitle: {
-    fontSize:21, fontWeight:900, color:C.navy,
+    fontSize:21, fontWeight:900, color:C.ink,
     lineHeight:1.35, margin:0,
   },
   modalDescription: {
@@ -1192,7 +1356,7 @@ const s = {
   },
   audioIcon: {
     width:72, height:72, borderRadius:'50%',
-    background:`linear-gradient(135deg, ${C.navy} 0%, ${SITE_BLUE} 100%)`,
+    background:`linear-gradient(135deg, ${C.blue} 0%, ${C.blueDeep} 100%)`,
     display:'flex', alignItems:'center', justifyContent:'center',
     fontSize:28, color:'#fff',
     boxShadow:`0 8px 24px rgba(27,63,106,0.3)`,
@@ -1228,7 +1392,7 @@ const s = {
   },
   articleIcon: {
     width:48, height:48, borderRadius:12,
-    background:`linear-gradient(135deg, ${C.navy} 0%, ${SITE_BLUE} 100%)`,
+    background:`linear-gradient(135deg, ${C.blue} 0%, ${C.blueDeep} 100%)`,
     display:'flex', alignItems:'center', justifyContent:'center',
     fontSize:22, color:'#fff', flexShrink:0,
   },
@@ -1259,11 +1423,10 @@ const css = `
   .topic-btn { background-color: transparent !important; outline: none !important; }
   .topic-btn:focus { outline: none !important; }
   .mobile-topic-btn:focus { outline: none !important; }
-  .topic-btn.active { background-color: ${C.gold} !important; }
+  .topic-btn.active { background-color: ${C.amber} !important; }
 
   .topic-btn:hover:not(.active) {
-    background-color: rgba(255,255,255,0.09) !important;
-    color: rgba(255,255,255,0.85) !important;
+    background-color: rgba(0,0,0,0.06) !important;
   }
 
   .series-card:hover {
@@ -1286,8 +1449,8 @@ const css = `
   }
 
   .lesson-row:hover {
-    background-color: ${C.cream} !important;
-    box-shadow: inset -3px 0 0 ${C.gold} !important;
+    background-color: #F4F7FF !important;
+    box-shadow: inset -3px 0 0 ${C.blue} !important;
   }
 
   .lesson-row:last-child {
@@ -1295,9 +1458,9 @@ const css = `
   }
 
   .back-btn:hover {
-    background-color: ${C.cream} !important;
-    color: ${C.navy} !important;
-    border-color: ${C.navy} !important;
+    background-color: ${C.blueLight} !important;
+    color: ${C.blue} !important;
+    border-color: ${C.blue} !important;
   }
 
   .filter-btn:hover:not(.active) {
@@ -1305,17 +1468,16 @@ const css = `
     color: #fff !important;
   }
 
-  .share-btn:hover { background-color: ${C.cream} !important; color: ${C.navy} !important; }
+  .share-btn:hover { background-color: ${C.blueLight} !important; color: ${C.blue} !important; }
 
-  .bavua-search::placeholder { color: rgba(255,255,255,0.45); }
+  .bavua-search::placeholder { color: rgba(255,255,255,0.6); }
   .bavua-search:focus { outline: none; }
 
   /* Mobile topic strip */
   .mobile-topic-btn { background-color: transparent !important; }
-  .mobile-topic-btn.active { background-color: ${C.gold} !important; border-color: ${C.gold} !important; }
+  .mobile-topic-btn.active { background-color: ${C.amber} !important; border-color: ${C.amber} !important; color: ${C.ink} !important; }
   .mobile-topic-btn:hover:not(.active) {
-    background-color: rgba(255,255,255,0.12) !important;
-    color: rgba(255,255,255,0.9) !important;
+    background-color: rgba(255,255,255,0.16) !important;
   }
 
   /* Hide scrollbars on mobile strips */
@@ -1326,12 +1488,12 @@ const css = `
 
   ::-webkit-scrollbar { width: 7px; }
   ::-webkit-scrollbar-track { background: rgba(0,0,0,0.05); border-radius: 10px; }
-  ::-webkit-scrollbar-thumb { background: rgba(27,63,106,0.3); border-radius: 10px; }
-  ::-webkit-scrollbar-thumb:hover { background: rgba(27,63,106,0.58); }
+  ::-webkit-scrollbar-thumb { background: rgba(74,113,255,0.35); border-radius: 10px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(74,113,255,0.6); }
 
-  /* Sidebar (dark surface) scrollbar */
-  .bavua-dark-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.22); }
-  .bavua-dark-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.45); }
+  /* Sidebar (emerald surface) scrollbar */
+  .bavua-dark-scroll::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.18); }
+  .bavua-dark-scroll::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.32); }
 
   /* Scroll nav buttons */
   .scroll-nav-btn:hover:not(:disabled) {
